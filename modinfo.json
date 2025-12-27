@@ -1,0 +1,11 @@
+{
+    "type": "code",
+    "modid": "Alterrain",
+    "name": "Alterrain",
+    "authors": ["Alexander Meißner (Lichtso)"],
+    "description": "An Alternative Terrain Generator",
+    "version": "0.0.1",
+    "dependencies": {
+        "game": ""
+    }
+}
