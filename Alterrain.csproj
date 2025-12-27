@@ -4,7 +4,7 @@
     <TargetFramework>net8.0</TargetFramework>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <OutputPath>bin/Alterrain</OutputPath>
+    <OutputPath>bin/$(MSBuildProjectName)</OutputPath>
     <Version>0.0.1</Version>
   </PropertyGroup>
 
