@@ -173,11 +173,11 @@ namespace Alterrain
                 (double prevX, double prevZ) = (positionX, positionZ);
                 positionX += directionX;
                 positionZ += directionZ;
-                if (positionX < offsetX * regionSize || positionX >= (offsetX + 1) * regionSize || positionZ < offsetZ * regionSize || positionZ >= (offsetZ + 1) * regionSize)
+                if (prevX >= offsetX * regionSize && prevX < (offsetX + 1) * regionSize && prevZ >= offsetZ * regionSize && prevZ < (offsetZ + 1) * regionSize &&
+                    positionX >= offsetX * regionSize && positionX < (offsetX + 1) * regionSize && positionZ >= offsetZ * regionSize && positionZ < (offsetZ + 1) * regionSize)
                 {
-                    break;
+                    HeightMapRenderer.Bresenham3D(quadratureMap, (int) (regionSize * 3), (int) prevX, 0, (int) prevZ, (int) positionX, 0, (int) positionZ);
                 }
-                HeightMapRenderer.Bresenham3D(quadratureMap, (int) (regionSize * 3), (int) prevX, 0, (int) prevZ, (int) positionX, 0, (int) positionZ);
                 (double s, double c) = Math.SinCos(angularVelocity);
                 (directionX, directionZ) = (directionX * c - directionZ * s, directionX * s + directionZ * c);
                 angularVelocity = GameMath.Clamp(angularVelocity * 0.95 - 0.05 * angularVelocityDelayed + (rng.NextFloat() - 0.5) * 0.2 * Math.PI, -0.3, 0.3);
