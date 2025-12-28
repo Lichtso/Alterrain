@@ -192,25 +192,48 @@ namespace Alterrain
         int mantleBlockId;
         int defaultRockId;
         int waterBlockId;
+        NormalizedSimplexNoise upheavalNoiseGen;
+        NormalizedSimplexNoise modulationNoiseGen;
         LCGRandom rng;
 
         private void OnInitWorldGen()
         {
+            upheavalNoiseGen = new NormalizedSimplexNoise(new double[] { 1.0, 0.5, 0.25, 0.125 }, new double[] { 0.125, 0.25, 0.5, 1.0 }, api.WorldManager.Seed);
+            modulationNoiseGen = new NormalizedSimplexNoise(new double[] { 2.0 }, new double[] { 1.0 / 16.0 }, api.WorldManager.Seed + 4934928);
             rng = new LCGRandom(api.WorldManager.Seed);
         }
 
         private void OnMapRegionGen(IMapRegion mapRegion, int regionX, int regionZ, ITreeAttribute chunkGenParams = null)
         {
-            api.Server.LogEvent(String.Format("OnMapRegionGen {0} {1}", regionX, regionZ));
-            float[] quadratureMap = new float[api.WorldManager.RegionSize * api.WorldManager.RegionSize * 9];
-            for (uint i = 0; i < quadratureMap.Length; i++)
-            {
-                quadratureMap[i] = 150F * 150F;
-            }
-            IntDataMap2D upheavalMap = mapRegion.UpheavelMap;
             int regionChunkSize = api.WorldManager.RegionSize / GlobalConstants.ChunkSize;
-            float ufac = (float)upheavalMap.InnerSize / regionChunkSize;
+            const float riverDepth = 7.0F;
+            float maxMountainHeight = (float) (api.WorldManager.MapSizeY - TerraGenConfig.seaLevel) - riverDepth;
             const float chunkBlockDelta = 1.0f / GlobalConstants.ChunkSize;
+            float[] quadratureMap = new float[api.WorldManager.RegionSize * api.WorldManager.RegionSize * 9];
+            for (int rlZ = -regionChunkSize; rlZ < regionChunkSize * 2; ++rlZ)
+            {
+                for (int rlX = -regionChunkSize; rlX < regionChunkSize * 2; ++rlX)
+                {
+                    double upheavalUpLeft = upheavalNoiseGen.Noise(regionX * regionChunkSize + rlX, regionZ * regionChunkSize + rlZ);
+                    double upheavalUpRight = upheavalNoiseGen.Noise(regionX * regionChunkSize + rlX + 1, regionZ * regionChunkSize + rlZ);
+                    double upheavalBotLeft = upheavalNoiseGen.Noise(regionX * regionChunkSize + rlX, regionZ * regionChunkSize + rlZ + 1);
+                    double upheavalBotRight = upheavalNoiseGen.Noise(regionX * regionChunkSize + rlX + 1, regionZ * regionChunkSize + rlZ + 1);
+                    double modulationUpLeft = modulationNoiseGen.Noise(regionX * regionChunkSize + rlX, regionZ * regionChunkSize + rlZ);
+                    double modulationUpRight = modulationNoiseGen.Noise(regionX * regionChunkSize + rlX + 1, regionZ * regionChunkSize + rlZ);
+                    double modulationBotLeft = modulationNoiseGen.Noise(regionX * regionChunkSize + rlX, regionZ * regionChunkSize + rlZ + 1);
+                    double modulationBotRight = modulationNoiseGen.Noise(regionX * regionChunkSize + rlX + 1, regionZ * regionChunkSize + rlZ + 1);
+                    int offset = (rlZ + regionChunkSize) * GlobalConstants.ChunkSize * api.WorldManager.RegionSize * 3 + (rlX + regionChunkSize) * GlobalConstants.ChunkSize;
+                    for (uint lZ = 0; lZ < GlobalConstants.ChunkSize; ++lZ)
+                    {
+                        for (uint lX = 0; lX < GlobalConstants.ChunkSize; ++lX)
+                        {
+                            float height = riverDepth + maxMountainHeight * (float) GameMath.BiLerp(upheavalUpLeft, upheavalUpRight, upheavalBotLeft, upheavalBotRight, lX * chunkBlockDelta, lZ * chunkBlockDelta);
+                            height *= (float) GameMath.BiLerp(modulationUpLeft, modulationUpRight, modulationBotLeft, modulationBotRight, lX * chunkBlockDelta, lZ * chunkBlockDelta);
+                            quadratureMap[offset + lZ * api.WorldManager.RegionSize * 3 + lX] = height * height;
+                        }
+                    }
+                }
+            }
             for (int offsetZ = -1; offsetZ <= 1; ++offsetZ)
             {
                 for (int offsetX = -1; offsetX <= 1; ++offsetX)
@@ -224,25 +247,14 @@ namespace Alterrain
             {
                 for (uint rlX = 0; rlX < regionChunkSize; ++rlX)
                 {
-                    double upheavalMapUpLeft = 0;
-                    double upheavalMapUpRight = 0;
-                    double upheavalMapBotLeft = 0;
-                    double upheavalMapBotRight = 0;
-                    if (upheavalMap != null)
-                    {
-                        upheavalMapUpLeft = upheavalMap.GetUnpaddedInt((int)(rlX * ufac), (int)(rlZ * ufac));
-                        upheavalMapUpRight = upheavalMap.GetUnpaddedInt((int)(rlX * ufac + ufac), (int)(rlZ * ufac));
-                        upheavalMapBotLeft = upheavalMap.GetUnpaddedInt((int)(rlX * ufac), (int)(rlZ * ufac + ufac));
-                        upheavalMapBotRight = upheavalMap.GetUnpaddedInt((int)(rlX * ufac + ufac), (int)(rlZ * ufac + ufac));
-                    }
+                    
                     ushort[] heightMap = new ushort[GlobalConstants.ChunkSize * GlobalConstants.ChunkSize];
                     for (uint lZ = 0; lZ < GlobalConstants.ChunkSize; lZ++)
                     {
                         for (uint lX = 0; lX < GlobalConstants.ChunkSize; lX++)
                         {
-                            double upheaval = GameMath.BiLerp(upheavalMapUpLeft, upheavalMapUpRight, upheavalMapBotLeft, upheavalMapBotRight, lX * chunkBlockDelta, lZ * chunkBlockDelta) / api.WorldManager.MapSizeY;
-                            double height = upheaval * Math.Sqrt(quadratureMap[(api.WorldManager.RegionSize + rlZ * GlobalConstants.ChunkSize + lZ) * api.WorldManager.RegionSize * 3 + (api.WorldManager.RegionSize + rlX * GlobalConstants.ChunkSize + lX)]);
-                            height = (height <= 7.0) ? (height - 7.0) :
+                            double height = Math.Sqrt(quadratureMap[(api.WorldManager.RegionSize + rlZ * GlobalConstants.ChunkSize + lZ) * api.WorldManager.RegionSize * 3 + (api.WorldManager.RegionSize + rlX * GlobalConstants.ChunkSize + lX)]);
+                            height = (height <= riverDepth) ? (height - riverDepth) :
                                     (height <= 18.0) ? height * 0.07 :
                                     (height <= 33.0) ? height * 0.5 - 8.0 :
                                     height - 24.0;
