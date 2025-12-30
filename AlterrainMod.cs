@@ -15,7 +15,7 @@ namespace Alterrain
         // https://www.geeksforgeeks.org/python/bresenhams-algorithm-for-3-d-line-drawing/
         public static void Bresenham3D(float[] quadratureMap, int stride, int x1, int y1, int z1, int x2, int y2, int z2)
         {
-            quadratureMap[z1 * stride + x1] = (float) y1;
+            quadratureMap[z1 * stride + x1] = (float) y1 * (float) y1;
             int dx = Math.Abs(x2 - x1);
             int dy = Math.Abs(y2 - y1);
             int dz = Math.Abs(z2 - z1);
@@ -198,8 +198,8 @@ namespace Alterrain
 
         private void OnInitWorldGen()
         {
-            upheavalNoiseGen = new NormalizedSimplexNoise(new double[] { 1.0, 0.5, 0.25, 0.125 }, new double[] { 0.125, 0.25, 0.5, 1.0 }, api.WorldManager.Seed);
-            modulationNoiseGen = new NormalizedSimplexNoise(new double[] { 2.0 }, new double[] { 1.0 / 16.0 }, api.WorldManager.Seed + 4934928);
+            upheavalNoiseGen = new NormalizedSimplexNoise(new double[] { 1.0, 0.5, 0.25 }, new double[] { 0.125, 0.25, 0.5 }, api.WorldManager.Seed);
+            modulationNoiseGen = new NormalizedSimplexNoise(new double[] { 0.125 }, new double[] { 0.03125 }, api.WorldManager.Seed + 4934928);
             rng = new LCGRandom(api.WorldManager.Seed);
         }
 
@@ -227,8 +227,9 @@ namespace Alterrain
                     {
                         for (uint lX = 0; lX < GlobalConstants.ChunkSize; ++lX)
                         {
-                            float height = riverDepth + maxMountainHeight * (float) GameMath.BiLerp(upheavalUpLeft, upheavalUpRight, upheavalBotLeft, upheavalBotRight, lX * chunkBlockDelta, lZ * chunkBlockDelta);
-                            height *= (float) GameMath.BiLerp(modulationUpLeft, modulationUpRight, modulationBotLeft, modulationBotRight, lX * chunkBlockDelta, lZ * chunkBlockDelta);
+                            float height = maxMountainHeight * (float) GameMath.BiLerp(upheavalUpLeft, upheavalUpRight, upheavalBotLeft, upheavalBotRight, lX * chunkBlockDelta, lZ * chunkBlockDelta);
+                            height *= 1.0F - (float) GameMath.BiLerp(modulationUpLeft, modulationUpRight, modulationBotLeft, modulationBotRight, lX * chunkBlockDelta, lZ * chunkBlockDelta);
+                            height += riverDepth;
                             quadratureMap[offset + lZ * api.WorldManager.RegionSize * 3 + lX] = height * height;
                         }
                     }
@@ -257,7 +258,8 @@ namespace Alterrain
                             height = (height <= riverDepth) ? (height - riverDepth) :
                                     (height <= 18.0) ? height * 0.07 :
                                     (height <= 33.0) ? height * 0.5 - 8.0 :
-                                    height - 24.0;
+                                    (height <= 50.0) ? height - 24.0 :
+                                    height * 1.5 - 49.0;
                             height = Math.Min(height + TerraGenConfig.seaLevel, api.WorldManager.MapSizeY - 1);
                             heightMap[lZ * GlobalConstants.ChunkSize + lX] = (ushort) height;
                         }
@@ -349,10 +351,6 @@ namespace Alterrain
             IWorldGenHandler handles = api.Event.GetRegisteredWorldGenHandlers("standard");
             var GenTerra = handles.OnChunkColumnGen[(int)EnumWorldGenPass.Terrain].FindIndex(a => a.Method.DeclaringType == typeof(GenTerra));
             handles.OnChunkColumnGen[(int)EnumWorldGenPass.Terrain].RemoveAt(GenTerra);
-            var GenCaves1 = handles.OnChunkColumnGen[(int)EnumWorldGenPass.Terrain].FindIndex(a => a.Method.DeclaringType == typeof(GenPartial));
-            handles.OnChunkColumnGen[(int)EnumWorldGenPass.Terrain].RemoveAt(GenCaves1);
-            var GenCaves2 = handles.OnMapChunkGen.FindIndex(a => a.Method.DeclaringType == typeof(GenCaves));
-            handles.OnMapChunkGen.RemoveAt(GenCaves2);
             api.Event.InitWorldGenerator(OnInitWorldGen, "standard");
             handles.OnMapRegionGen.Add(OnMapRegionGen);
             handles.OnChunkColumnGen[(int)EnumWorldGenPass.Terrain].Insert(0, OnChunkColumnGen);
