@@ -6,7 +6,6 @@ using Vintagestory.API.Datastructures;
 using Vintagestory.API.Config;
 using Vintagestory.API.MathTools;
 using Vintagestory.ServerMods;
-using static Vintagestory.ServerMods.NoObf.GlobalConfig;
 
 namespace Alterrain
 {
@@ -159,31 +158,6 @@ namespace Alterrain
                 DistanceTransformRowOrColumn(squaredDistanceMap, x, width, height);
             }
         }
-
-        public static void RenderStream(ICoreServerAPI api, LCGRandom rng, float[] squaredDistanceMap, uint regionSize, int offsetX, int offsetZ)
-        {
-            (double positionX, double positionZ) = (offsetX * regionSize + rng.NextInt((int) regionSize), offsetZ * regionSize + rng.NextInt((int) regionSize));
-            (double directionX, double directionZ) = (offsetX * regionSize + regionSize / 2 - positionX, offsetZ * regionSize + regionSize / 2 - positionZ);
-            double factor = 15.0 / Math.Sqrt(directionX * directionX + directionZ * directionZ);
-            directionX *= factor;
-            directionZ *= factor;
-            double angularVelocity = 0, angularVelocityDelayed = 0;
-            for (uint i = 0; i < 100; ++i)
-            {
-                (double prevX, double prevZ) = (positionX, positionZ);
-                positionX += directionX;
-                positionZ += directionZ;
-                if (prevX >= offsetX * regionSize && prevX < (offsetX + 1) * regionSize && prevZ >= offsetZ * regionSize && prevZ < (offsetZ + 1) * regionSize &&
-                    positionX >= offsetX * regionSize && positionX < (offsetX + 1) * regionSize && positionZ >= offsetZ * regionSize && positionZ < (offsetZ + 1) * regionSize)
-                {
-                    HeightMapRenderer.Bresenham3D(squaredDistanceMap, (int) (regionSize * 3), (int) prevX, 0, (int) prevZ, (int) positionX, 0, (int) positionZ);
-                }
-                (double s, double c) = Math.SinCos(angularVelocity);
-                (directionX, directionZ) = (directionX * c - directionZ * s, directionX * s + directionZ * c);
-                angularVelocity = GameMath.Clamp(angularVelocity * 0.95 - 0.05 * angularVelocityDelayed + (rng.NextFloat() - 0.5) * 0.2 * Math.PI, -0.3, 0.3);
-                angularVelocityDelayed += angularVelocity;
-            }
-        }
     }
 
     public class AlterrainMod : ModStdWorldGen
@@ -192,14 +166,12 @@ namespace Alterrain
         int mantleBlockId;
         int defaultRockId;
         int waterBlockId;
-        NormalizedSimplexNoise upheavalNoiseGen;
-        NormalizedSimplexNoise modulationNoiseGen;
+        IDictionary<FastVec2i, List<(FastVec3i, FastVec3i)>> drainageSystems;
         LCGRandom rng;
 
         private void OnInitWorldGen()
         {
-            upheavalNoiseGen = new NormalizedSimplexNoise(new double[] { 1.0, 0.5, 0.25 }, new double[] { 0.125, 0.25, 0.5 }, api.WorldManager.Seed);
-            modulationNoiseGen = new NormalizedSimplexNoise(new double[] { 0.125 }, new double[] { 0.03125 }, api.WorldManager.Seed + 4934928);
+            drainageSystems = new Dictionary<FastVec2i, List<(FastVec3i, FastVec3i)>>();
             rng = new LCGRandom(api.WorldManager.Seed);
         }
 
@@ -208,57 +180,52 @@ namespace Alterrain
             int regionChunkSize = api.WorldManager.RegionSize / GlobalConstants.ChunkSize;
             const float riverDepth = 7.0F;
             float maxMountainHeight = (float) (api.WorldManager.MapSizeY - TerraGenConfig.seaLevel) - riverDepth;
-            const float chunkBlockDelta = 1.0f / GlobalConstants.ChunkSize;
             float[] squaredDistanceMap = new float[api.WorldManager.RegionSize * api.WorldManager.RegionSize * 9];
-            for (int rlZ = -regionChunkSize; rlZ < regionChunkSize * 2; ++rlZ)
+            for (int i = 0; i < squaredDistanceMap.Length; ++i)
             {
-                for (int rlX = -regionChunkSize; rlX < regionChunkSize * 2; ++rlX)
+                squaredDistanceMap[i] = squaredDistanceMap.Length;
+            }
+            Rectanglei region = new Rectanglei((regionX - 1) * api.WorldManager.RegionSize, (regionZ - 1) * api.WorldManager.RegionSize, api.WorldManager.RegionSize * 3, api.WorldManager.RegionSize * 3);
+            FastVec2i centralBasinCoord = new FastVec2i(
+                (region.X2 + region.X1) / (2 * Basin.cellSpacing),
+                (region.Y2 + region.Y1) / (2 * Basin.cellSpacing)
+            );
+            for (int z = 0; z < 3; ++z)
+            {
+                for (int x = 0; x < 3; ++x)
                 {
-                    double upheavalUpLeft = upheavalNoiseGen.Noise(regionX * regionChunkSize + rlX, regionZ * regionChunkSize + rlZ);
-                    double upheavalUpRight = upheavalNoiseGen.Noise(regionX * regionChunkSize + rlX + 1, regionZ * regionChunkSize + rlZ);
-                    double upheavalBotLeft = upheavalNoiseGen.Noise(regionX * regionChunkSize + rlX, regionZ * regionChunkSize + rlZ + 1);
-                    double upheavalBotRight = upheavalNoiseGen.Noise(regionX * regionChunkSize + rlX + 1, regionZ * regionChunkSize + rlZ + 1);
-                    double modulationUpLeft = modulationNoiseGen.Noise(regionX * regionChunkSize + rlX, regionZ * regionChunkSize + rlZ);
-                    double modulationUpRight = modulationNoiseGen.Noise(regionX * regionChunkSize + rlX + 1, regionZ * regionChunkSize + rlZ);
-                    double modulationBotLeft = modulationNoiseGen.Noise(regionX * regionChunkSize + rlX, regionZ * regionChunkSize + rlZ + 1);
-                    double modulationBotRight = modulationNoiseGen.Noise(regionX * regionChunkSize + rlX + 1, regionZ * regionChunkSize + rlZ + 1);
-                    int offset = (rlZ + regionChunkSize) * GlobalConstants.ChunkSize * api.WorldManager.RegionSize * 3 + (rlX + regionChunkSize) * GlobalConstants.ChunkSize;
-                    for (uint lZ = 0; lZ < GlobalConstants.ChunkSize; ++lZ)
+                    FastVec2i basinCoord = new FastVec2i(
+                        centralBasinCoord.X + x - 1,
+                        centralBasinCoord.Y + z - 1
+                    );
+                    List<(FastVec3i, FastVec3i)> drainageSystem;
+                    if (!drainageSystems.TryGetValue(basinCoord, out drainageSystem))
                     {
-                        for (uint lX = 0; lX < GlobalConstants.ChunkSize; ++lX)
-                        {
-                            float height = maxMountainHeight * (float) GameMath.BiLerp(upheavalUpLeft, upheavalUpRight, upheavalBotLeft, upheavalBotRight, lX * chunkBlockDelta, lZ * chunkBlockDelta);
-                            height *= 1.0F - (float) GameMath.BiLerp(modulationUpLeft, modulationUpRight, modulationBotLeft, modulationBotRight, lX * chunkBlockDelta, lZ * chunkBlockDelta);
-                            height += riverDepth;
-                            squaredDistanceMap[offset + lZ * api.WorldManager.RegionSize * 3 + lX] = height * height;
-                        }
+                        Basin basin = new Basin(rng, basinCoord);
+                        drainageSystem = basin.GenerateDrainageSystem(rng, basinCoord, maxMountainHeight);
+                        drainageSystems.Add(basinCoord, drainageSystem);
+                    }
+                    foreach ((FastVec3i upstream, FastVec3i downstream) in drainageSystem)
+                    {
+                        HeightMapRenderer.Bresenham3D(squaredDistanceMap, api.WorldManager.RegionSize * 3, upstream.X, upstream.Y, upstream.Z, downstream.X, downstream.Y, downstream.Z);
                     }
                 }
             }
-            for (int offsetZ = -1; offsetZ <= 1; ++offsetZ)
-            {
-                for (int offsetX = -1; offsetX <= 1; ++offsetX)
-                {
-                    rng.InitPositionSeed(regionX + offsetX, regionZ + offsetZ);
-                    HeightMapRenderer.RenderStream(api, rng, squaredDistanceMap, (uint) api.WorldManager.RegionSize, offsetX + 1, offsetZ + 1);
-                }
-            }
             HeightMapRenderer.DistanceTransform(squaredDistanceMap, (uint) api.WorldManager.RegionSize * 3, (uint) api.WorldManager.RegionSize * 3);
+            ushort[] heightMap = new ushort[GlobalConstants.ChunkSize * GlobalConstants.ChunkSize];
             for (uint rlZ = 0; rlZ < regionChunkSize; ++rlZ)
             {
                 for (uint rlX = 0; rlX < regionChunkSize; ++rlX)
                 {
-                    
-                    ushort[] heightMap = new ushort[GlobalConstants.ChunkSize * GlobalConstants.ChunkSize];
                     for (uint lZ = 0; lZ < GlobalConstants.ChunkSize; lZ++)
                     {
                         for (uint lX = 0; lX < GlobalConstants.ChunkSize; lX++)
                         {
                             double height = Math.Sqrt(squaredDistanceMap[(api.WorldManager.RegionSize + rlZ * GlobalConstants.ChunkSize + lZ) * api.WorldManager.RegionSize * 3 + (api.WorldManager.RegionSize + rlX * GlobalConstants.ChunkSize + lX)]);
-                            height = (height <= riverDepth) ? (height - riverDepth) :
-                                    (height <= 18.0) ? height * 0.07 :
-                                    (height <= 33.0) ? height * 0.5 - 8.0 :
-                                    (height <= 50.0) ? height - 24.0 :
+                            height = (height < riverDepth) ? (height - riverDepth) :
+                                    (height < 18.0) ? height * 0.07 :
+                                    (height < 33.0) ? height * 0.5 - 8.0 :
+                                    (height < 50.0) ? height - 24.0 :
                                     height * 1.5 - 49.0;
                             height = Math.Min(height + TerraGenConfig.seaLevel, api.WorldManager.MapSizeY - 1);
                             heightMap[lZ * GlobalConstants.ChunkSize + lX] = (ushort) height;
@@ -266,6 +233,10 @@ namespace Alterrain
                     }
                     mapRegion.SetModdata<ushort[]>(String.Format("heightMap:{0},{1}", rlX, rlZ), heightMap);
                 }
+            }
+            for (uint i = 0; i < mapRegion.BeachMap.Data.Length; ++i)
+            {
+                mapRegion.BeachMap.Data[i] = 0;
             }
         }
 
