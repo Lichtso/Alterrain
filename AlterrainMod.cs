@@ -60,33 +60,64 @@ namespace Alterrain
                 }
             }
             renderer.DistanceTransform();
+            Basin centalBasin = new Basin(rng, centralBasinCoord);
             uint stride = (uint) (renderer.frame.X2 - renderer.frame.X1);
+            const float chunkBlockDelta = 1.0f / GlobalConstants.ChunkSize;
             int regionChunkSize = api.WorldManager.RegionSize / GlobalConstants.ChunkSize;
             ushort[] heightMap = new ushort[GlobalConstants.ChunkSize * GlobalConstants.ChunkSize];
-            for (uint rlZ = 0; rlZ < regionChunkSize; ++rlZ)
+            for (int rlZ = 0; rlZ < regionChunkSize; ++rlZ)
             {
-                for (uint rlX = 0; rlX < regionChunkSize; ++rlX)
+                for (int rlX = 0; rlX < regionChunkSize; ++rlX)
                 {
-                    for (uint lZ = 0; lZ < GlobalConstants.ChunkSize; lZ++)
+                    int chunkGlobalX = renderer.frame.X1 + api.WorldManager.RegionSize + rlX * GlobalConstants.ChunkSize;
+                    int chunkGlobalZ = renderer.frame.Y1 + api.WorldManager.RegionSize + rlZ * GlobalConstants.ChunkSize;
+                    double depressionStrength = 2.0 / Basin.cellSpacing;
+                    (double depressionUpLeft, _) = centalBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX, chunkGlobalZ));
+                    (double depressionUpRight, _) = centalBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX + GlobalConstants.ChunkSize, chunkGlobalZ));
+                    (double depressionBotLeft, _) = centalBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX, chunkGlobalZ + GlobalConstants.ChunkSize));
+                    (double depressionBotRight, _) = centalBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX + GlobalConstants.ChunkSize, chunkGlobalZ + GlobalConstants.ChunkSize));
+                    depressionUpLeft = Math.Min(1.0, Math.Sqrt(depressionUpLeft) * depressionStrength);
+                    depressionUpRight = Math.Min(1.0, Math.Sqrt(depressionUpRight) * depressionStrength);
+                    depressionBotLeft = Math.Min(1.0, Math.Sqrt(depressionBotLeft) * depressionStrength);
+                    depressionBotRight = Math.Min(1.0, Math.Sqrt(depressionBotRight) * depressionStrength);
+                    for (int lZ = 0; lZ < GlobalConstants.ChunkSize; lZ++)
                     {
-                        for (uint lX = 0; lX < GlobalConstants.ChunkSize; lX++)
+                        for (int lX = 0; lX < GlobalConstants.ChunkSize; lX++)
                         {
-                            double height = Math.Sqrt(renderer.squaredDistanceMap[(api.WorldManager.RegionSize + rlZ * GlobalConstants.ChunkSize + lZ) * stride + (api.WorldManager.RegionSize + rlX * GlobalConstants.ChunkSize + lX)]);
+                            double depression = GameMath.BiLerp(depressionUpLeft, depressionUpRight, depressionBotLeft, depressionBotRight, lX * chunkBlockDelta, lZ * chunkBlockDelta);
+                            double height = Math.Sqrt(renderer.squaredDistanceMap[(chunkGlobalZ - renderer.frame.Y1 + lZ) * stride + (chunkGlobalX - renderer.frame.X1 + lX)]);
+                            height = (height - 4.0) * depression + 4.0;
                             height = (height < riverDepth) ? (height - riverDepth) :
                                     (height < 18.0) ? height * 0.07 :
                                     (height < 33.0) ? height * 0.5 - 8.0 :
                                     (height < 50.0) ? height - 24.0 :
                                     height * 1.5 - 49.0;
-                            height = Math.Min(height + TerraGenConfig.seaLevel, api.WorldManager.MapSizeY - 1);
+                            height = Math.Min(TerraGenConfig.seaLevel + height, api.WorldManager.MapSizeY - 1);
                             heightMap[lZ * GlobalConstants.ChunkSize + lX] = (ushort) height;
                         }
                     }
                     mapRegion.SetModdata<ushort[]>(String.Format("heightMap:{0},{1}", rlX, rlZ), heightMap);
                 }
             }
-            for (uint i = 0; i < mapRegion.BeachMap.Data.Length; ++i)
+            for (int i = 0; i < mapRegion.UpheavelMap.Data.Length; ++i)
+            {
+                mapRegion.UpheavelMap.Data[i] = 0;
+            }
+            for (int i = 0; i < mapRegion.OceanMap.Data.Length; ++i)
+            {
+                mapRegion.OceanMap.Data[i] = 0;
+            }
+            for (int i = 0; i < mapRegion.ClimateMap.Data.Length; ++i)
+            {
+                mapRegion.ClimateMap.Data[i] = (128 << 16) + (128 << 8);
+            }
+            for (int i = 0; i < mapRegion.BeachMap.Data.Length; ++i)
             {
                 mapRegion.BeachMap.Data[i] = 0;
+            }
+            for (int i = 0; i < mapRegion.LandformMap.Data.Length; ++i)
+            {
+                mapRegion.LandformMap.Data[i] = 0;
             }
         }
 

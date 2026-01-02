@@ -29,26 +29,11 @@ public struct RiverNode
         );
         position.X += rng.NextInt(cellWidth / 2) - cellWidth / 4;
         position.Y += rng.NextInt(cellHeight / 2) - cellHeight / 4;
-        squaredDistance = float.PositiveInfinity;
-        int closestBasin = 25;
         int basinCellX = GameMath.Clamp(position.X / Basin.cellSpacing - basinCoord.X + 2, 1, 3);
         int basinCellZ = GameMath.Clamp(position.Y / Basin.cellSpacing - basinCoord.Y + 2, 1, 3);
-        for (int z = basinCellZ - 1; z <= basinCellZ + 1; ++z)
-        {
-            for (int x = basinCellX - 1; x <= basinCellX + 1; ++x)
-            {
-                int i = z * 5 + x;
-                float diffX = basin.neighborBasins[i].X - position.X;
-                float diffZ = basin.neighborBasins[i].Y - position.Y;
-                float dist = diffX * diffX + diffZ * diffZ;
-                if (squaredDistance > dist)
-                {
-                    squaredDistance = dist;
-                    closestBasin = i;
-                }
-            }
-        }
-        flow = (closestBasin == 12) ? 1.0F : 0.0F;
+        (double squaredDistance, int closestBasinIndex) = basin.FindClosestBasin(basinCellX, basinCellZ, position);
+        flow = (closestBasinIndex == 12) ? 1.0F : 0.0F;
+        this.squaredDistance = (float) squaredDistance;
         downstreamCoord.X = -1;
         downstreamCoord.Y = -1;
     }
@@ -74,6 +59,28 @@ public class Basin
                 );
             }
         }
+    }
+
+    public (double, int) FindClosestBasin(int basinCellX, int basinCellZ, FastVec2i position)
+    {
+        double squaredDistance = double.PositiveInfinity;
+        int closestBasinIndex = 25;
+        for (int z = basinCellZ - 1; z <= basinCellZ + 1; ++z)
+        {
+            for (int x = basinCellX - 1; x <= basinCellX + 1; ++x)
+            {
+                int i = z * 5 + x;
+                double diffX = neighborBasins[i].X - position.X;
+                double diffZ = neighborBasins[i].Y - position.Y;
+                double dist = diffX * diffX + diffZ * diffZ;
+                if (squaredDistance > dist)
+                {
+                    squaredDistance = dist;
+                    closestBasinIndex = i;
+                }
+            }
+        }
+        return (squaredDistance, closestBasinIndex);
     }
 
     public List<QuadraticBezierCurve> GenerateDrainageSystem(LCGRandom rng, FastVec2i basinCoord, float maxMountainHeight)
