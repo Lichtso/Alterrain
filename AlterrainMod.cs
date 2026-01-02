@@ -55,18 +55,7 @@ namespace Alterrain
                     }
                     foreach (QuadraticBezierCurve segment in drainageSystem)
                     {
-                        int prevX = segment.a.X;
-                        int prevZ = segment.a.Y;
-                        for (int i = 1; i <= 10; ++i)
-                        {
-                            float t = (float) i / 10.0F;
-                            float s = 1.0F - t;
-                            int currentX = (int) (s * s * segment.a.X + 2.0F * s * t * segment.b.X + t * t * segment.c.X);
-                            int currentZ = (int) (s * s * segment.a.Y + 2.0F * s * t * segment.b.Y + t * t * segment.c.Y);
-                            renderer.Bresenham3D(prevX, segment.height, prevZ, currentX, segment.height, currentZ);
-                            prevX = currentX;
-                            prevZ = currentZ;
-                        }
+                        renderer.QuadraticBezierCurve(segment.a.X, segment.a.Y, segment.b.X, segment.b.Y, segment.c.X, segment.c.Y, segment.height);
                     }
                 }
             }

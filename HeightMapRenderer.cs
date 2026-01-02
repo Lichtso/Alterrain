@@ -29,115 +29,115 @@ public class HeightMapRenderer
     public void Point(int x, int y, int z)
     {
         if (x < frame.X1 || x >= frame.X2 || z < frame.Y1 || z >= frame.Y2)
-        {
             return;
-        }
-        squaredDistanceMap[(z - frame.X1) * (frame.X2 - frame.X1) + (x - frame.X1)] = (float) y * (float) y;
+        squaredDistanceMap[(z - frame.Y1) * (frame.X2 - frame.X1) + (x - frame.X1)] = (float) y * (float) y;
     }
 
-    // https://www.geeksforgeeks.org/python/bresenhams-algorithm-for-3-d-line-drawing/
-    public void Bresenham3D(int x1, int y1, int z1, int x2, int y2, int z2)
+    // http://members.chello.at/easyfilter/bresenham.c
+    public void LineSegment3D(int x0, int y0, int z0, int x1, int y1, int z1)
     {
-        if (x1 < frame.X1 || x1 >= frame.X2 || z1 < frame.Y1 || z1 >= frame.Y2 || x2 < frame.X1 || x2 >= frame.X2 || z2 < frame.Y1 || z2 >= frame.Y2)
-        {
+        if (x0 < frame.X1 || x0 >= frame.X2 || z0 < frame.Y1 || z0 >= frame.Y2 ||
+            x1 < frame.X1 || x1 >= frame.X2 || z1 < frame.Y1 || z1 >= frame.Y2)
             return;
+        x0 -= frame.X1;
+        z0 -= frame.Y1;
+        x1 -= frame.X1;
+        z1 -= frame.Y1;
+        int stride = frame.X2 - frame.X1;
+        int dx = Math.Abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
+        int dy = Math.Abs(y1 - y0), sy = y0 < y1 ? 1 : -1; 
+        int dz = Math.Abs(z1 - z0), sz = z0 < z1 ? 1 : -1; 
+        int dm = Math.Max(dx, Math.Max(dy, dz)), i = dm;
+        x1 = y1 = z1 = dm / 2;
+        for (;;)
+        {
+            squaredDistanceMap[z0 * stride + x0] = Math.Min(squaredDistanceMap[z0 * stride + x0], (float) y0 * (float) y0);
+            if (i-- == 0) break;
+            x1 -= dx; if (x1 < 0) { x1 += dm; x0 += sx; } 
+            y1 -= dy; if (y1 < 0) { y1 += dm; y0 += sy; } 
+            z1 -= dz; if (z1 < 0) { z1 += dm; z0 += sz; } 
         }
+    }
+
+    // http://members.chello.at/easyfilter/bresenham.c
+    private void QuadraticBezierSegment(int x0, int z0, int x1, int z1, int x2, int z2, int y)
+    {
+        int stride = frame.X2 - frame.X1;
+        int sx = x2-x1, sz = z2-z1;
+        long xx = x0-x1, zz = z0-z1, xz;
+        double dx, dz, err, cur = xx*sz-zz*sx;
+        if (xx*sx > 0 || zz*sz > 0) return;
+        if (sx*(long)sx+sz*(long)sz > xx*xx+zz*zz)
+        {
+            x2 = x0; x0 = sx+x1; z2 = z0; z0 = sz+z1; cur = -cur;
+        }  
+        if (cur != 0)
+        {
+            xx += sx; xx *= sx = x0 < x2 ? 1 : -1;
+            zz += sz; zz *= sz = z0 < z2 ? 1 : -1;
+            xz = 2*xx*zz; xx *= xx; zz *= zz;
+            if (cur*sx*sz < 0)
+            {
+                xx = -xx; zz = -zz; xz = -xz; cur = -cur;
+            }
+            dx = 4.0*sz*cur*(x1-x0)+xx-xz;
+            dz = 4.0*sx*cur*(z0-z1)+zz-xz;
+            xx += xx; zz += zz; err = dx+dz+xz;
+            do
+            {                              
+                squaredDistanceMap[z0 * stride + x0] = Math.Min(squaredDistanceMap[z0 * stride + x0], (float) y * (float) y);
+                if (x0 == x2 && z0 == z2) return;
+                bool cond = 2*err < dx;
+                if (2*err > dz) { x0 += sx; dx -= xz; err += dz += zz; }
+                if (cond) { z0 += sz; dz -= xz; err += dx += xx; }
+            }
+            while (dz < dx);
+        }
+        LineSegment3D(x0 + frame.X1, y, z0 + frame.Y1, x2 + frame.X1, y, z2 + frame.Y1);
+    }
+
+    // http://members.chello.at/easyfilter/bresenham.c
+    public void QuadraticBezierCurve(int x0, int z0, int x1, int z1, int x2, int z2, int y)
+    {
+        if (x0 < frame.X1 || x0 >= frame.X2 || z0 < frame.Y1 || z0 >= frame.Y2 ||
+            x1 < frame.X1 || x1 >= frame.X2 || z1 < frame.Y1 || z1 >= frame.Y2 ||
+            x2 < frame.X1 || x2 >= frame.X2 || z2 < frame.Y1 || z2 >= frame.Y2)
+            return;
+        x0 -= frame.X1;
+        z0 -= frame.Y1;
         x1 -= frame.X1;
         z1 -= frame.Y1;
         x2 -= frame.X1;
         z2 -= frame.Y1;
-        int stride = frame.X2 - frame.X1;
-        squaredDistanceMap[z1 * stride + x1] = (float) y1 * (float) y1;
-        int dx = Math.Abs(x2 - x1);
-        int dy = Math.Abs(y2 - y1);
-        int dz = Math.Abs(z2 - z1);
-        int xs;
-        int ys;
-        int zs;
-        if (x2 > x1)
-            xs = 1;
-        else
-            xs = -1;
-        if (y2 > y1)
-            ys = 1;
-        else
-            ys = -1;
-        if (z2 > z1)
-            zs = 1;
-        else
-            zs = -1;
-
-        // Driving axis is X-axis
-        if (dx >= dy && dx >= dz)
+        int x = x0-x1, z = z0-z1;
+        double t = x0-2*x1+x2, r;
+        if ((long)x*(x2-x1) > 0)
         {
-            int p1 = 2 * dy - dx;
-            int p2 = 2 * dz - dx;
-            while (x1 != x2)
+            if ((long)z*(z2-z1) > 0 && Math.Abs((z0-2*z1+z2)/t*x) > Math.Abs(z))
             {
-                x1 += xs;
-                if (p1 >= 0)
-                {
-                    y1 += ys;
-                    p1 -= 2 * dx;
-                }
-                if (p2 >= 0)
-                {
-                    z1 += zs;
-                    p2 -= 2 * dx;
-                }
-                p1 += 2 * dy;
-                p2 += 2 * dz;
-                squaredDistanceMap[z1 * stride + x1] = (float) y1 * (float) y1;
+                x0 = x2; x2 = x+x1; z0 = z2; z2 = z+z1;
             }
-
-            // Driving axis is Y-axis
+            t = (x0-x1)/t;
+            r = (1-t)*((1-t)*z0+2.0*t*z1)+t*t*z2;
+            t = (x0*x2-x1*x1)*t/(x0-x1);
+            x = (int) (t+0.5); z = (int) (r+0.5);
+            r = (z1-z0)*(t-x0)/(x1-x0)+z0;
+            QuadraticBezierSegment(x0, z0, x, (int) (r+0.5), x, z, y);
+            r = (z1-z2)*(t-x2)/(x1-x2)+z2;
+            x0 = x1 = x; z0 = z; z1 = (int) (r+0.5);
         }
-        else if (dy >= dx && dy >= dz)
+        if ((long)(z0-z1)*(z2-z1) > 0)
         {
-            int p1 = 2 * dx - dy;
-            int p2 = 2 * dz - dy;
-            while (y1 != y2)
-            {
-                y1 += ys;
-                if (p1 >= 0)
-                {
-                    x1 += xs;
-                    p1 -= 2 * dy;
-                }
-                if (p2 >= 0)
-                {
-                    z1 += zs;
-                    p2 -= 2 * dy;
-                }
-                p1 += 2 * dx;
-                p2 += 2 * dz;
-                squaredDistanceMap[z1 * stride + x1] = (float) y1 * (float) y1;
-            }
-
-            // Driving axis is Z-axis
+            t = z0-2*z1+z2; t = (z0-z1)/t;
+            r = (1-t)*((1-t)*x0+2.0*t*x1)+t*t*x2;
+            t = (z0*z2-z1*z1)*t/(z0-z1);
+            x = (int) (r+0.5); z = (int) (t+0.5);
+            r = (x1-x0)*(t-z0)/(z1-z0)+x0;
+            QuadraticBezierSegment(x0, z0, (int) (r+0.5), z, x, z, y);
+            r = (x1-x2)*(t-z2)/(z1-z2)+x2;
+            x0 = x; x1 = (int) (r+0.5); z0 = z1 = z;
         }
-        else
-        {
-            int p1 = 2 * dy - dz;
-            int p2 = 2 * dx - dz;
-            while (z1 != z2)
-            {
-                z1 += zs;
-                if (p1 >= 0)
-                {
-                    y1 += ys;
-                    p1 -= 2 * dz;
-                }
-                if (p2 >= 0)
-                {
-                    x1 += xs;
-                    p2 -= 2 * dz;
-                }
-                p1 += 2 * dy;
-                p2 += 2 * dx;
-                squaredDistanceMap[z1 * stride + x1] = (float) y1 * (float) y1;
-            }
-        }
+        QuadraticBezierSegment(x0, z0, x1, z1, x2, z2, y);
     }
 
     // https://cs.brown.edu/people/pfelzens/papers/dt-final.pdf (Distance Transforms of Sampled Functions, Pedro F. Felzenszwalb, Daniel P. Huttenlocher)
