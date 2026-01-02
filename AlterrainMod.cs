@@ -310,7 +310,7 @@ namespace Alterrain
                 {
                     uint offset = lZ * GlobalConstants.ChunkSize + lX;
                     uint YMax = heightMap[offset];
-                    rainheightmap[offset] = (ushort) Math.Max(YMax, TerraGenConfig.seaLevel);
+                    rainheightmap[offset] = (ushort) Math.Max(YMax, TerraGenConfig.seaLevel - 1);
                     terrainheightmap[offset] = (ushort) YMax;
                     ++YMax;
                     for (int lY = YMin; lY < YMax; lY++)
@@ -321,7 +321,7 @@ namespace Alterrain
                     for (uint lY = YMax; lY < TerraGenConfig.seaLevel; lY++)
                     {
                         chunkBlockData = request.Chunks[lY / GlobalConstants.ChunkSize].Data;
-                        chunkBlockData[(int) ((lY % GlobalConstants.ChunkSize) * stride + offset)] = waterBlockId;
+                        chunkBlockData.SetFluid((int) ((lY % GlobalConstants.ChunkSize) * stride + offset), waterBlockId);
                     }
                 }
             }
