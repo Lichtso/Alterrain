@@ -9,157 +9,6 @@ using Vintagestory.ServerMods;
 
 namespace Alterrain
 {
-    public static class HeightMapRenderer
-    {
-        // https://www.geeksforgeeks.org/python/bresenhams-algorithm-for-3-d-line-drawing/
-        public static void Bresenham3D(float[] squaredDistanceMap, int stride, int x1, int y1, int z1, int x2, int y2, int z2)
-        {
-            squaredDistanceMap[z1 * stride + x1] = (float) y1 * (float) y1;
-            int dx = Math.Abs(x2 - x1);
-            int dy = Math.Abs(y2 - y1);
-            int dz = Math.Abs(z2 - z1);
-            int xs;
-            int ys;
-            int zs;
-            if (x2 > x1)
-                xs = 1;
-            else
-                xs = -1;
-            if (y2 > y1)
-                ys = 1;
-            else
-                ys = -1;
-            if (z2 > z1)
-                zs = 1;
-            else
-                zs = -1;
-
-            // Driving axis is X-axis
-            if (dx >= dy && dx >= dz)
-            {
-                int p1 = 2 * dy - dx;
-                int p2 = 2 * dz - dx;
-                while (x1 != x2)
-                {
-                    x1 += xs;
-                    if (p1 >= 0)
-                    {
-                        y1 += ys;
-                        p1 -= 2 * dx;
-                    }
-                    if (p2 >= 0)
-                    {
-                        z1 += zs;
-                        p2 -= 2 * dx;
-                    }
-                    p1 += 2 * dy;
-                    p2 += 2 * dz;
-                    squaredDistanceMap[z1 * stride + x1] = (float) y1 * (float) y1;
-                }
-
-                // Driving axis is Y-axis
-            }
-            else if (dy >= dx && dy >= dz)
-            {
-                int p1 = 2 * dx - dy;
-                int p2 = 2 * dz - dy;
-                while (y1 != y2)
-                {
-                    y1 += ys;
-                    if (p1 >= 0)
-                    {
-                        x1 += xs;
-                        p1 -= 2 * dy;
-                    }
-                    if (p2 >= 0)
-                    {
-                        z1 += zs;
-                        p2 -= 2 * dy;
-                    }
-                    p1 += 2 * dx;
-                    p2 += 2 * dz;
-                    squaredDistanceMap[z1 * stride + x1] = (float) y1 * (float) y1;
-                }
-
-                // Driving axis is Z-axis
-            }
-            else
-            {
-                int p1 = 2 * dy - dz;
-                int p2 = 2 * dx - dz;
-                while (z1 != z2)
-                {
-                    z1 += zs;
-                    if (p1 >= 0)
-                    {
-                        y1 += ys;
-                        p1 -= 2 * dz;
-                    }
-                    if (p2 >= 0)
-                    {
-                        x1 += xs;
-                        p2 -= 2 * dz;
-                    }
-                    p1 += 2 * dy;
-                    p2 += 2 * dx;
-                    squaredDistanceMap[z1 * stride + x1] = (float) y1 * (float) y1;
-                }
-            }
-        }
-
-        // https://cs.brown.edu/people/pfelzens/papers/dt-final.pdf (Distance Transforms of Sampled Functions, Pedro F. Felzenszwalb, Daniel P. Huttenlocher)
-        public static void DistanceTransformRowOrColumn(float[] squaredDistanceMap, uint offset, uint stride, uint n)
-        {
-            uint[] v = new uint[n];
-            float[] z = new float[n + 1];
-            float[] aux = new float[n];
-            for (uint q = 0; q < n; ++q)
-            {
-                aux[q] = squaredDistanceMap[offset + stride * q];
-            }
-            uint max = n * n * n;
-            v[0] = 0;
-            z[0] = -max;
-            z[1] = max;
-            float s;
-            uint k = 0;
-            for (uint q = 1; q < n; ++q)
-            {
-                do
-                {
-                    uint vk = v[k];
-                    s = ((aux[q] + q * q) - (aux[vk] + vk * vk)) / (2 * (q - vk));
-                } while(s <= z[k--]);
-                k += 2;
-                v[k] = q;
-                z[k] = s;
-                z[k + 1] = max;
-            }
-            k = 0;
-            for (uint q = 0; q < n; ++q)
-            {
-                while (z[k + 1] < q)
-                {
-                    ++k;
-                }
-                uint vk = v[k];
-                squaredDistanceMap[offset + stride * q] = (q - vk) * (q - vk) + aux[vk];
-            }
-        }
-
-        public static void DistanceTransform(float[] squaredDistanceMap, uint width, uint height)
-        {
-            for (uint y = 0; y < height; ++y)
-            {
-                DistanceTransformRowOrColumn(squaredDistanceMap, y * width, 1, width);
-            }
-            for (uint x = 0; x < width; ++x)
-            {
-                DistanceTransformRowOrColumn(squaredDistanceMap, x, width, height);
-            }
-        }
-    }
-
     public class AlterrainMod : ModStdWorldGen
     {
         ICoreServerAPI api;
@@ -177,18 +26,17 @@ namespace Alterrain
 
         private void OnMapRegionGen(IMapRegion mapRegion, int regionX, int regionZ, ITreeAttribute chunkGenParams = null)
         {
-            int regionChunkSize = api.WorldManager.RegionSize / GlobalConstants.ChunkSize;
             const float riverDepth = 7.0F;
             float maxMountainHeight = (float) (api.WorldManager.MapSizeY - TerraGenConfig.seaLevel) - riverDepth;
-            float[] squaredDistanceMap = new float[api.WorldManager.RegionSize * api.WorldManager.RegionSize * 9];
-            for (int i = 0; i < squaredDistanceMap.Length; ++i)
-            {
-                squaredDistanceMap[i] = squaredDistanceMap.Length;
-            }
-            Rectanglei region = new Rectanglei((regionX - 1) * api.WorldManager.RegionSize, (regionZ - 1) * api.WorldManager.RegionSize, api.WorldManager.RegionSize * 3, api.WorldManager.RegionSize * 3);
+            HeightMapRenderer renderer = new HeightMapRenderer(new Rectanglei(
+                (regionX - 1) * api.WorldManager.RegionSize,
+                (regionZ - 1) * api.WorldManager.RegionSize,
+                api.WorldManager.RegionSize * 3,
+                api.WorldManager.RegionSize * 3
+            ));
             FastVec2i centralBasinCoord = new FastVec2i(
-                (region.X2 + region.X1) / (2 * Basin.cellSpacing),
-                (region.Y2 + region.Y1) / (2 * Basin.cellSpacing)
+                (renderer.frame.X2 + renderer.frame.X1) / (2 * Basin.cellSpacing),
+                (renderer.frame.Y2 + renderer.frame.Y1) / (2 * Basin.cellSpacing)
             );
             for (int z = 0; z < 3; ++z)
             {
@@ -207,11 +55,13 @@ namespace Alterrain
                     }
                     foreach ((FastVec3i upstream, FastVec3i downstream) in drainageSystem)
                     {
-                        HeightMapRenderer.Bresenham3D(squaredDistanceMap, api.WorldManager.RegionSize * 3, upstream.X, upstream.Y, upstream.Z, downstream.X, downstream.Y, downstream.Z);
+                        renderer.Bresenham3D(upstream.X, upstream.Y, upstream.Z, downstream.X, downstream.Y, downstream.Z);
                     }
                 }
             }
-            HeightMapRenderer.DistanceTransform(squaredDistanceMap, (uint) api.WorldManager.RegionSize * 3, (uint) api.WorldManager.RegionSize * 3);
+            renderer.DistanceTransform();
+            uint stride = (uint) (renderer.frame.X2 - renderer.frame.X1);
+            int regionChunkSize = api.WorldManager.RegionSize / GlobalConstants.ChunkSize;
             ushort[] heightMap = new ushort[GlobalConstants.ChunkSize * GlobalConstants.ChunkSize];
             for (uint rlZ = 0; rlZ < regionChunkSize; ++rlZ)
             {
@@ -221,7 +71,7 @@ namespace Alterrain
                     {
                         for (uint lX = 0; lX < GlobalConstants.ChunkSize; lX++)
                         {
-                            double height = Math.Sqrt(squaredDistanceMap[(api.WorldManager.RegionSize + rlZ * GlobalConstants.ChunkSize + lZ) * api.WorldManager.RegionSize * 3 + (api.WorldManager.RegionSize + rlX * GlobalConstants.ChunkSize + lX)]);
+                            double height = Math.Sqrt(renderer.squaredDistanceMap[(api.WorldManager.RegionSize + rlZ * GlobalConstants.ChunkSize + lZ) * stride + (api.WorldManager.RegionSize + rlX * GlobalConstants.ChunkSize + lX)]);
                             height = (height < riverDepth) ? (height - riverDepth) :
                                     (height < 18.0) ? height * 0.07 :
                                     (height < 33.0) ? height * 0.5 - 8.0 :
