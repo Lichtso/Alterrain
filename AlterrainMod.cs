@@ -15,12 +15,12 @@ namespace Alterrain
         int mantleBlockId;
         int defaultRockId;
         int waterBlockId;
-        IDictionary<FastVec2i, List<(FastVec3i, FastVec3i)>> drainageSystems;
+        IDictionary<FastVec2i, List<QuadraticBezierCurve>> drainageSystems;
         LCGRandom rng;
 
         private void OnInitWorldGen()
         {
-            drainageSystems = new Dictionary<FastVec2i, List<(FastVec3i, FastVec3i)>>();
+            drainageSystems = new Dictionary<FastVec2i, List<QuadraticBezierCurve>>();
             rng = new LCGRandom(api.WorldManager.Seed);
         }
 
@@ -46,16 +46,27 @@ namespace Alterrain
                         centralBasinCoord.X + x - 1,
                         centralBasinCoord.Y + z - 1
                     );
-                    List<(FastVec3i, FastVec3i)> drainageSystem;
+                    List<QuadraticBezierCurve> drainageSystem;
                     if (!drainageSystems.TryGetValue(basinCoord, out drainageSystem))
                     {
                         Basin basin = new Basin(rng, basinCoord);
                         drainageSystem = basin.GenerateDrainageSystem(rng, basinCoord, maxMountainHeight);
                         drainageSystems.Add(basinCoord, drainageSystem);
                     }
-                    foreach ((FastVec3i upstream, FastVec3i downstream) in drainageSystem)
+                    foreach (QuadraticBezierCurve segment in drainageSystem)
                     {
-                        renderer.Bresenham3D(upstream.X, upstream.Y, upstream.Z, downstream.X, downstream.Y, downstream.Z);
+                        int prevX = segment.a.X;
+                        int prevZ = segment.a.Y;
+                        for (int i = 1; i <= 10; ++i)
+                        {
+                            float t = (float) i / 10.0F;
+                            float s = 1.0F - t;
+                            int currentX = (int) (s * s * segment.a.X + 2.0F * s * t * segment.b.X + t * t * segment.c.X);
+                            int currentZ = (int) (s * s * segment.a.Y + 2.0F * s * t * segment.b.Y + t * t * segment.c.Y);
+                            renderer.Bresenham3D(prevX, segment.height, prevZ, currentX, segment.height, currentZ);
+                            prevX = currentX;
+                            prevZ = currentZ;
+                        }
                     }
                 }
             }

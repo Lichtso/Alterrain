@@ -3,6 +3,14 @@ using Vintagestory.API.MathTools;
 
 namespace Alterrain;
 
+public struct QuadraticBezierCurve
+{
+    public FastVec2i a;
+    public FastVec2i b;
+    public FastVec2i c;
+    public int height;
+}
+
 public class HeightMapRenderer
 {
     public Rectanglei frame;

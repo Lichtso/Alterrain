@@ -76,7 +76,7 @@ public class Basin
         }
     }
 
-    public List<(FastVec3i, FastVec3i)> GenerateDrainageSystem(LCGRandom rng, FastVec2i basinCoord, float maxMountainHeight)
+    public List<QuadraticBezierCurve> GenerateDrainageSystem(LCGRandom rng, FastVec2i basinCoord, float maxMountainHeight)
     {
         List<FastVec2i> topologicallySorted = new List<FastVec2i>();
         FastVec2i rootNodeCoord = RiverNode.CoordsAt((int) neighborBasins[12].X, (int) neighborBasins[12].Y);
@@ -113,7 +113,6 @@ public class Basin
             }
         }
         rng.InitPositionSeed(basinCoord.X, basinCoord.Y);
-        List<(FastVec3i, FastVec3i)> drainageSystem = new List<(FastVec3i, FastVec3i)>();
         for (int i = topologicallySorted.Count - 1; i >= 0; --i)
         {
             FastVec2i nodeCoord = topologicallySorted[i];
@@ -123,7 +122,10 @@ public class Basin
             {
                 FastVec2i neighborNodeCoord = nodeCoord + relativeCoord;
                 RiverNode neighborNode;
-                if (nodes.TryGetValue(neighborNodeCoord, out neighborNode) && neighborNode.downstreamCoord.X == -1 && neighborNode.squaredDistance < node.squaredDistance)
+                if (nodes.TryGetValue(neighborNodeCoord, out neighborNode) &&
+                    neighborNode.downstreamCoord.X == -1 &&
+                    neighborNode.downstreamCoord.Y == -1 &&
+                    neighborNode.squaredDistance < node.squaredDistance)
                 {
                     candidateNodeCoords.Add(neighborNodeCoord);
                 }
@@ -137,8 +139,30 @@ public class Basin
             downstreamNode.flow += node.flow;
             nodes[node.downstreamCoord] = downstreamNode;
             nodes[nodeCoord] = node;
-            int height = (int) Math.Max(0.0F, maxMountainHeight - node.flow * 8.0F);
-            drainageSystem.Add((new FastVec3i(node.position.X, height, node.position.Y), new FastVec3i(downstreamNode.position.X, height, downstreamNode.position.Y)));
+        }
+        List<QuadraticBezierCurve> drainageSystem = new List<QuadraticBezierCurve>();
+        for (int i = 0; i < topologicallySorted.Count; ++i)
+        {
+            FastVec2i nodeCoord = topologicallySorted[i];
+            RiverNode upstreamNode = nodes[nodeCoord];
+            if (upstreamNode.downstreamCoord.X == -1 && upstreamNode.downstreamCoord.Y == -1)
+            {
+                continue;
+            }
+            RiverNode node = nodes[upstreamNode.downstreamCoord];
+            if (node.downstreamCoord.X == -1 && node.downstreamCoord.Y == -1)
+            {
+                continue;
+            }
+            RiverNode downstreamNode = nodes[node.downstreamCoord];
+            QuadraticBezierCurve segment = new QuadraticBezierCurve();
+            segment.a = new FastVec2i(upstreamNode.position.X, upstreamNode.position.Y);
+            segment.b = new FastVec2i(node.position.X, node.position.Y);
+            segment.c = new FastVec2i(downstreamNode.position.X, downstreamNode.position.Y);
+            segment.a = (segment.a + segment.b) / 2;
+            segment.c = (segment.c + segment.b) / 2;
+            segment.height = (int) Math.Max(0.0F, maxMountainHeight - upstreamNode.flow * 8.0F);
+            drainageSystem.Add(segment);
         }
         return drainageSystem;
     }
