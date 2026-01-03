@@ -141,54 +141,54 @@ public class HeightMapRenderer
     }
 
     // https://cs.brown.edu/people/pfelzens/papers/dt-final.pdf (Distance Transforms of Sampled Functions, Pedro F. Felzenszwalb, Daniel P. Huttenlocher)
-    private void DistanceTransformRowOrColumn(uint offset, uint stride, uint n)
+    private void DistanceTransformRowOrColumn(int offset, int stride, int n)
     {
-        uint[] v = new uint[n];
+        int[] v = new int[n];
         float[] z = new float[n + 1];
         float[] aux = new float[n];
-        for (uint q = 0; q < n; ++q)
+        for (int q = 0; q < n; ++q)
         {
             aux[q] = squaredDistanceMap[offset + stride * q];
         }
-        uint max = n * n * n;
+        long max = (long) n * (long) n * (long) n;
         v[0] = 0;
         z[0] = -max;
         z[1] = max;
         float s;
-        uint k = 0;
-        for (uint q = 1; q < n; ++q)
+        int k = 0;
+        for (int q = 1; q < n; ++q)
         {
             do
             {
-                uint vk = v[k];
+                int vk = v[k];
                 s = ((aux[q] + q * q) - (aux[vk] + vk * vk)) / (2 * (q - vk));
             } while(s <= z[k--]);
             k += 2;
-            v[k] = q;
+            v[k] = (int) q;
             z[k] = s;
             z[k + 1] = max;
         }
         k = 0;
-        for (uint q = 0; q < n; ++q)
+        for (int q = 0; q < n; ++q)
         {
             while (z[k + 1] < q)
             {
                 ++k;
             }
-            uint vk = v[k];
+            int vk = v[k];
             squaredDistanceMap[offset + stride * q] = (q - vk) * (q - vk) + aux[vk];
         }
     }
 
     public void DistanceTransform()
     {
-        uint width = (uint) (frame.X2 - frame.X1);
-        uint height = (uint) (frame.Y2 - frame.Y1);
-        for (uint y = 0; y < height; ++y)
+        int width = frame.X2 - frame.X1;
+        int height = frame.Y2 - frame.Y1;
+        for (int y = 0; y < height; ++y)
         {
             DistanceTransformRowOrColumn(y * width, 1, width);
         }
-        for (uint x = 0; x < width; ++x)
+        for (int x = 0; x < width; ++x)
         {
             DistanceTransformRowOrColumn(x, width, height);
         }

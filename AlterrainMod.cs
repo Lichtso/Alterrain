@@ -61,7 +61,7 @@ namespace Alterrain
             }
             renderer.DistanceTransform();
             Basin centalBasin = new Basin(rng, centralBasinCoord);
-            uint stride = (uint) (renderer.frame.X2 - renderer.frame.X1);
+            int stride = renderer.frame.X2 - renderer.frame.X1;
             const float chunkBlockDelta = 1.0f / GlobalConstants.ChunkSize;
             int regionChunkSize = api.WorldManager.RegionSize / GlobalConstants.ChunkSize;
             ushort[] heightMap = new ushort[GlobalConstants.ChunkSize * GlobalConstants.ChunkSize];
@@ -135,9 +135,9 @@ namespace Alterrain
             IChunkBlocks chunkBlockData = request.Chunks[0].Data;
             mapChunk.YMax = 0;
             ushort YMin = (ushort) api.WorldManager.MapSizeY;
-            for (uint lZ = 0; lZ < GlobalConstants.ChunkSize; lZ++)
+            for (int lZ = 0; lZ < GlobalConstants.ChunkSize; lZ++)
             {
-                for (uint lX = 0; lX < GlobalConstants.ChunkSize; lX++)
+                for (int lX = 0; lX < GlobalConstants.ChunkSize; lX++)
                 {
                     ushort height = heightMap[lZ * GlobalConstants.ChunkSize + lX];
                     YMin = Math.Min(YMin, height);
@@ -145,35 +145,35 @@ namespace Alterrain
                 }
             }
             ++YMin;
-            uint stride = GlobalConstants.ChunkSize * GlobalConstants.ChunkSize;
-            for (uint chunkY = 0; chunkY < (YMin + GlobalConstants.ChunkSize - 1) / GlobalConstants.ChunkSize; chunkY++)
+            int stride = GlobalConstants.ChunkSize * GlobalConstants.ChunkSize;
+            for (int chunkY = 0; chunkY < (YMin + GlobalConstants.ChunkSize - 1) / GlobalConstants.ChunkSize; chunkY++)
             {
                 chunkBlockData = request.Chunks[chunkY].Data;
-                uint endY = (uint) Math.Min(YMin - chunkY * GlobalConstants.ChunkSize, GlobalConstants.ChunkSize);
-                for (uint lY = 0; lY < endY; lY++) {
-                    chunkBlockData.SetBlockBulk((int) (lY * stride), GlobalConstants.ChunkSize, GlobalConstants.ChunkSize, defaultRockId);
+                int endY = Math.Min(YMin - chunkY * GlobalConstants.ChunkSize, GlobalConstants.ChunkSize);
+                for (int lY = 0; lY < endY; lY++) {
+                    chunkBlockData.SetBlockBulk(lY * stride, GlobalConstants.ChunkSize, GlobalConstants.ChunkSize, defaultRockId);
                 }
             }
             chunkBlockData = request.Chunks[0].Data;
             chunkBlockData.SetBlockBulk(0, GlobalConstants.ChunkSize, GlobalConstants.ChunkSize, mantleBlockId);
-            for (uint lZ = 0; lZ < GlobalConstants.ChunkSize; lZ++)
+            for (int lZ = 0; lZ < GlobalConstants.ChunkSize; lZ++)
             {
-                for (uint lX = 0; lX < GlobalConstants.ChunkSize; lX++)
+                for (int lX = 0; lX < GlobalConstants.ChunkSize; lX++)
                 {
-                    uint offset = lZ * GlobalConstants.ChunkSize + lX;
-                    uint YMax = heightMap[offset];
+                    int offset = lZ * GlobalConstants.ChunkSize + lX;
+                    int YMax = heightMap[offset];
                     rainheightmap[offset] = (ushort) Math.Max(YMax, TerraGenConfig.seaLevel - 1);
                     terrainheightmap[offset] = (ushort) YMax;
                     ++YMax;
                     for (int lY = YMin; lY < YMax; lY++)
                     {
                         chunkBlockData = request.Chunks[lY / GlobalConstants.ChunkSize].Data;
-                        chunkBlockData[(int) ((lY % GlobalConstants.ChunkSize) * stride + offset)] = defaultRockId;
+                        chunkBlockData[(lY % GlobalConstants.ChunkSize) * stride + offset] = defaultRockId;
                     }
-                    for (uint lY = YMax; lY < TerraGenConfig.seaLevel; lY++)
+                    for (int lY = YMax; lY < TerraGenConfig.seaLevel; lY++)
                     {
                         chunkBlockData = request.Chunks[lY / GlobalConstants.ChunkSize].Data;
-                        chunkBlockData.SetFluid((int) ((lY % GlobalConstants.ChunkSize) * stride + offset), waterBlockId);
+                        chunkBlockData.SetFluid((lY % GlobalConstants.ChunkSize) * stride + offset, waterBlockId);
                     }
                 }
             }

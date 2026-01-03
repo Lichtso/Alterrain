@@ -17,7 +17,7 @@ public struct RiverNode
     public static FastVec2i CoordsAt(int positionX, int positionZ)
     {
         int x = positionX / cellWidth;
-        return new FastVec2i(x, (int) ((positionZ + cellHeight * x / 2) / cellHeight));
+        return new FastVec2i(x, (positionZ + cellHeight * x / 2) / cellHeight);
     }
 
     public RiverNode(LCGRandom rng, FastVec2i basinCoord, Basin basin, FastVec2i nodeCoord)
@@ -86,7 +86,7 @@ public class Basin
     public List<QuadraticBezierCurve> GenerateDrainageSystem(LCGRandom rng, FastVec2i basinCoord, float maxMountainHeight)
     {
         List<FastVec2i> topologicallySorted = new List<FastVec2i>();
-        FastVec2i rootNodeCoord = RiverNode.CoordsAt((int) neighborBasins[12].X, (int) neighborBasins[12].Y);
+        FastVec2i rootNodeCoord = RiverNode.CoordsAt(neighborBasins[12].X, neighborBasins[12].Y);
         RiverNode rootNode = new RiverNode(rng, basinCoord, this, rootNodeCoord);
         IDictionary<FastVec2i, RiverNode> nodes = new Dictionary<FastVec2i, RiverNode>();
         nodes.Add(rootNodeCoord, rootNode);
