@@ -1,10 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
-using Vintagestory.API.Common;
-using Vintagestory.API.Server;
-using Vintagestory.API.Datastructures;
 using Vintagestory.API.Config;
+using Vintagestory.API.Common;
+using Vintagestory.API.Datastructures;
 using Vintagestory.API.MathTools;
+using Vintagestory.API.Server;
 using Vintagestory.ServerMods;
 
 namespace Alterrain
@@ -61,6 +61,7 @@ namespace Alterrain
             }
             renderer.DistanceTransform();
             Basin centalBasin = new Basin(rng, centralBasinCoord);
+            centalBasin.InitClimate(api, rng, centralBasinCoord);
             int stride = renderer.frame.X2 - renderer.frame.X1;
             const float chunkBlockDelta = 1.0f / GlobalConstants.ChunkSize;
             int regionChunkSize = api.WorldManager.RegionSize / GlobalConstants.ChunkSize;
@@ -107,9 +108,17 @@ namespace Alterrain
             {
                 mapRegion.OceanMap.Data[i] = 0;
             }
-            for (int i = 0; i < mapRegion.ClimateMap.Data.Length; ++i)
+            int climateMapOrigX = renderer.frame.X1 + api.WorldManager.RegionSize - mapRegion.ClimateMap.TopLeftPadding * TerraGenConfig.climateMapScale;
+            int climateMapOrigZ = renderer.frame.Y1 + api.WorldManager.RegionSize - mapRegion.ClimateMap.TopLeftPadding * TerraGenConfig.climateMapScale;
+            for (int pixelZ = 0; pixelZ < mapRegion.ClimateMap.Size; ++pixelZ)
             {
-                mapRegion.ClimateMap.Data[i] = (128 << 16) + (128 << 8);
+                for (int pixelX = 0; pixelX < mapRegion.ClimateMap.Size; ++pixelX)
+                {
+                    (_, int closestBasinIndex) = centalBasin.FindClosestBasin(2, 2, new FastVec2i(
+                        climateMapOrigX + pixelX * TerraGenConfig.climateMapScale, climateMapOrigZ + pixelZ * TerraGenConfig.climateMapScale
+                    ));
+                    mapRegion.ClimateMap.Data[pixelZ * mapRegion.ClimateMap.Size + pixelX] = centalBasin.neighborClimate[closestBasinIndex];
+                }
             }
             for (int i = 0; i < mapRegion.BeachMap.Data.Length; ++i)
             {
