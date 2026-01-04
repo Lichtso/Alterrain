@@ -120,6 +120,18 @@ namespace Alterrain
                     mapRegion.ClimateMap.Data[pixelZ * mapRegion.ClimateMap.Size + pixelX] = centalBasin.neighborClimate[closestBasinIndex];
                 }
             }
+            int forestMapOrigX = api.WorldManager.RegionSize - mapRegion.ForestMap.TopLeftPadding * TerraGenConfig.forestMapScale;
+            int forestMapOrigZ = api.WorldManager.RegionSize - mapRegion.ForestMap.TopLeftPadding * TerraGenConfig.forestMapScale;
+            for (int pixelZ = 0; pixelZ < mapRegion.ForestMap.Size; ++pixelZ)
+            {
+                for (int pixelX = 0; pixelX < mapRegion.ForestMap.Size; ++pixelX)
+                {
+                    double distToRiver = Math.Sqrt(renderer.squaredDistanceMap[
+                        (forestMapOrigZ + pixelZ * TerraGenConfig.forestMapScale) * stride + (forestMapOrigX + pixelX * TerraGenConfig.forestMapScale)
+                    ]);
+                    mapRegion.ForestMap.Data[pixelZ * mapRegion.ForestMap.Size + pixelX] = (int) (511.0 * Math.Max(0.0, 1.0 - Math.Abs(distToRiver - 40.0) / 30.0));
+                }
+            }
             for (int i = 0; i < mapRegion.BeachMap.Data.Length; ++i)
             {
                 mapRegion.BeachMap.Data[i] = 0;
