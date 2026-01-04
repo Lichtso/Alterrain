@@ -4,7 +4,7 @@
     "name": "Alterrain",
     "authors": ["Lichtso"],
     "description": "An Alternative Terrain Generator",
-    "version": "0.2.0",
+    "version": "0.2.1",
     "dependencies": {
         "game": ""
     }
