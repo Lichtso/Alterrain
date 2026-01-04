@@ -1,6 +1,6 @@
 # Alterrain Mod for Vintage Story
 
-[Download the latest release](../../releases/)
+[Download the latest release](../../releases/latest)
 
 ### Warning
 
@@ -10,12 +10,20 @@ Always generate new worlds to try out the terrain mod and deactivate the terrain
 ### Limitations
 
 This mod does not work with other terrain mods or mods changing landforms.
+It does however work well with extra high worlds which the vanilla generator discourages.
 
 ### Missing Features
 
-- The world generation configuration parameters are ignored
-- Fertility (forest, shrub, flower, etc. density) continues to use the vanilla generator and thus do not match the landscape
-- Geological provinces continue to use the vanilla generator and thus do not match the landscape
-- Climate and bioms are disabled
+- No mod config file
+- Geological provinces and rock strata continue to use the vanilla generator and thus do not match the landscape
 - Oceans, beaches and salt water are disabled
 - Rivers have no movement or current
+- The world generation configuration parameters are ignored:
+    - landcover
+    - oceanscale
+    - upheavelCommonness
+    - landformScale
+- There are no landforms yet:
+    - Vulcanos
+    - Dunes
+    - Cliffs
