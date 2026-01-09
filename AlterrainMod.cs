@@ -136,6 +136,19 @@ namespace Alterrain
             {
                 mapRegion.BeachMap.Data[i] = 0;
             }
+            int geoProvMapOrigX = renderer.frame.X1 + api.WorldManager.RegionSize - mapRegion.GeologicProvinceMap.TopLeftPadding * TerraGenConfig.geoProvMapScale;
+            int geoProvMapOrigZ = renderer.frame.Y1 + api.WorldManager.RegionSize - mapRegion.GeologicProvinceMap.TopLeftPadding * TerraGenConfig.geoProvMapScale;
+            for (int pixelZ = 0; pixelZ < mapRegion.GeologicProvinceMap.Size; ++pixelZ)
+            {
+                for (int pixelX = 0; pixelX < mapRegion.GeologicProvinceMap.Size; ++pixelX)
+                {
+                    (double depression, _) = centalBasin.FindClosestBasin(2, 2, new FastVec2i(
+                        geoProvMapOrigZ + pixelZ * TerraGenConfig.geoProvMapScale, geoProvMapOrigX + pixelX * TerraGenConfig.geoProvMapScale
+                    ));
+                    depression = Math.Sqrt(depression) / Basin.cellSpacing;
+                    mapRegion.GeologicProvinceMap.Data[pixelZ * mapRegion.GeologicProvinceMap.Size + pixelX] = (depression < 0.2) ? 3 : (depression < 0.4) ? 2 : 0;
+                }
+            }
             for (int i = 0; i < mapRegion.LandformMap.Data.Length; ++i)
             {
                 mapRegion.LandformMap.Data[i] = 0;
