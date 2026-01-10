@@ -148,9 +148,10 @@ public class HeightMapRenderer
         int pixelIndex = y * stride + x;
         (int diffX, int diffY, float currentValue) = output[pixelIndex];
         (diffX, diffY, _) = output[ny * stride + nx];
+        float height = input[(ny + diffY) * stride + (nx + diffX)];
         diffX += nx - x;
         diffY += ny - y;
-        float newValue = (float) Math.Sqrt(diffX * diffX + diffY * diffY);
+        float newValue = (float) Math.Sqrt(diffX * diffX + diffY * diffY) + height;
         if (currentValue > newValue)
             output[pixelIndex] = (diffX, diffY, newValue);
     }
