@@ -223,13 +223,8 @@ namespace Alterrain
             mantleBlockId = api.World.GetBlock("mantle")?.BlockId ?? 0;
             defaultRockId = api.World.GetBlock("rock-granite")?.BlockId ?? 0;
             waterBlockId = api.World.GetBlock("water-still-7")?.BlockId ?? 0;
-            slopeProfile = new SlopeProfile(new (double, double, double)[] {
-                (7.0, -7.0, 1.0),
-                (11.0, 0.0, 0.07),
-                (15.0, 0.0, 0.5),
-                (17.0, 0.0, 1.0),
-                (10000.0, 0.0, 1.5)
-            });
+            IAsset asset = api.Assets.Get("survival:worldgen/slopeprofile.json");
+            slopeProfile = new SlopeProfile(asset.ToObject<List<SlopeInterval>>());
         }
 
         public override void StartServerSide(ICoreServerAPI coreApi)

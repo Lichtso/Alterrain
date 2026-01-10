@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Vintagestory.API.MathTools;
 
 namespace Alterrain;
@@ -195,23 +196,27 @@ public class HeightMapRenderer
     }
 }
 
+public class SlopeInterval
+{
+    public double length;
+    public double slope;
+}
+
 public class SlopeProfile
 {
     (double, double, double)[] intervals;
 
-    public SlopeProfile((double, double, double)[] intervals)
+    public SlopeProfile(List<SlopeInterval> intervals)
     {
         double prevEnd = 0.0;
-        double startHeight = 0.0;
-        for (int i = 0; i < intervals.Length; ++i)
+        double startHeight = -7.0;
+        this.intervals = new (double, double, double)[intervals.Count];
+        for (int i = 0; i < intervals.Count; ++i)
         {
-            (double length, double cliff, double slope) = intervals[i];
-            startHeight += cliff;
-            intervals[i] = (prevEnd + length, startHeight - prevEnd * slope, slope);
-            prevEnd += length;
-            startHeight += length * slope;
+            this.intervals[i] = (prevEnd + intervals[i].length, startHeight - prevEnd * intervals[i].slope, intervals[i].slope);
+            prevEnd += intervals[i].length;
+            startHeight += intervals[i].length * intervals[i].slope;
         }
-        this.intervals = intervals;
     }
 
     public double distanceToHeight(double distance)
