@@ -194,3 +194,42 @@ public class HeightMapRenderer
         }
     }
 }
+
+public class SlopeProfile
+{
+    (double, double, double)[] intervals;
+
+    public SlopeProfile((double, double, double)[] intervals)
+    {
+        double prevEnd = 0.0;
+        double startHeight = 0.0;
+        for (int i = 0; i < intervals.Length; ++i)
+        {
+            (double length, double cliff, double slope) = intervals[i];
+            startHeight += cliff;
+            intervals[i] = (prevEnd + length, startHeight - prevEnd * slope, slope);
+            prevEnd += length;
+            startHeight += length * slope;
+        }
+        this.intervals = intervals;
+    }
+
+    public double distanceToHeight(double distance)
+    {
+        int low = 0;
+        int size = intervals.Length;
+        double boundary;
+        while (size > 1) {
+            int half = size / 2;
+            int mid = low + half;
+            (boundary, _, _) = intervals[mid];
+            low = (boundary > distance) ? low : mid;
+            size -= half;
+        }
+        (boundary, _, _) = intervals[low];
+        if (boundary < distance)
+            ++low;
+        (_, double offset, double factor) = intervals[low];
+        return distance * factor + offset;
+    }
+}

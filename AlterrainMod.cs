@@ -15,6 +15,7 @@ namespace Alterrain
         int mantleBlockId;
         int defaultRockId;
         int waterBlockId;
+        SlopeProfile slopeProfile;
         IDictionary<FastVec2i, List<QuadraticBezierCurve>> drainageSystems;
         LCGRandom rng;
 
@@ -26,8 +27,7 @@ namespace Alterrain
 
         private void OnMapRegionGen(IMapRegion mapRegion, int regionX, int regionZ, ITreeAttribute chunkGenParams = null)
         {
-            const float riverDepth = 7.0F;
-            float maxMountainHeight = (float) (api.WorldManager.MapSizeY - TerraGenConfig.seaLevel) - riverDepth;
+            float maxMountainHeight = (float) (api.WorldManager.MapSizeY - TerraGenConfig.seaLevel) - 7.0F;
             HeightMapRenderer renderer = new HeightMapRenderer(new Rectanglei(
                 (regionX - 1) * api.WorldManager.RegionSize,
                 (regionZ - 1) * api.WorldManager.RegionSize,
@@ -86,14 +86,8 @@ namespace Alterrain
                         for (int lX = 0; lX < GlobalConstants.ChunkSize; lX++)
                         {
                             double depression = GameMath.BiLerp(depressionUpLeft, depressionUpRight, depressionBotLeft, depressionBotRight, lX * chunkBlockDelta, lZ * chunkBlockDelta);
-                            double height = Math.Sqrt(renderer.squaredDistanceMap[(chunkGlobalZ - renderer.frame.Y1 + lZ) * stride + (chunkGlobalX - renderer.frame.X1 + lX)]);
-                            height = (height - 4.0) * depression + 4.0;
-                            height = (height < riverDepth) ? (height - riverDepth) :
-                                    (height < 18.0) ? height * 0.07 :
-                                    (height < 33.0) ? height * 0.5 - 8.0 :
-                                    (height < 50.0) ? height - 24.0 :
-                                    height * 1.5 - 49.0;
-                            height = Math.Min(TerraGenConfig.seaLevel + height, api.WorldManager.MapSizeY - 1);
+                            double distance = Math.Sqrt(renderer.squaredDistanceMap[(chunkGlobalZ - renderer.frame.Y1 + lZ) * stride + (chunkGlobalX - renderer.frame.X1 + lX)]);
+                            double height = Math.Min(TerraGenConfig.seaLevel + slopeProfile.distanceToHeight(distance * depression), api.WorldManager.MapSizeY - 3);
                             heightMap[lZ * GlobalConstants.ChunkSize + lX] = (ushort) height;
                         }
                     }
@@ -229,6 +223,13 @@ namespace Alterrain
             mantleBlockId = api.World.GetBlock("mantle")?.BlockId ?? 0;
             defaultRockId = api.World.GetBlock("rock-granite")?.BlockId ?? 0;
             waterBlockId = api.World.GetBlock("water-still-7")?.BlockId ?? 0;
+            slopeProfile = new SlopeProfile(new (double, double, double)[] {
+                (7.0, -7.0, 1.0),
+                (11.0, 0.0, 0.07),
+                (15.0, 0.0, 0.5),
+                (17.0, 0.0, 1.0),
+                (10000.0, 0.0, 1.5)
+            });
         }
 
         public override void StartServerSide(ICoreServerAPI coreApi)
