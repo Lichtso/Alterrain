@@ -230,7 +230,8 @@ public class Basin
             segment.a = new FastVec2i(upstreamNode.position.X, upstreamNode.position.Y);
             segment.b = new FastVec2i(node.position.X, node.position.Y);
             segment.c = new FastVec2i(downstreamNode.position.X, downstreamNode.position.Y);
-            segment.a = (segment.a + segment.b) / 2;
+            if (upstreamNode.flow > 1.0F)
+                segment.a = (segment.a + segment.b) / 2;
             segment.c = (segment.c + segment.b) / 2;
             segment.height = (int) Math.Max(0.0F, maxMountainHeight - upstreamNode.flow * 8.0F);
             drainageSystem.Add(segment);
