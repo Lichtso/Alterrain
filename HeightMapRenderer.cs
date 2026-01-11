@@ -15,15 +15,17 @@ public struct QuadraticBezierCurve
 public class HeightMapRenderer
 {
     public Rectanglei frame;
-    public float[] squaredDistanceMap;
+    public float[] input;
+    public (int, int, float)[] output;
 
     public HeightMapRenderer(Rectanglei rect)
     {
         frame = rect;
-        squaredDistanceMap = new float[(frame.X2 - frame.X1) * (frame.Y2 - frame.Y1)];
-        for (int i = 0; i < squaredDistanceMap.Length; ++i)
+        input = new float[(frame.X2 - frame.X1) * (frame.Y2 - frame.Y1)];
+        output = new (int, int, float)[(frame.X2 - frame.X1) * (frame.Y2 - frame.Y1)];
+        for (int i = 0; i < input.Length; ++i)
         {
-            squaredDistanceMap[i] = squaredDistanceMap.Length;
+            input[i] = input.Length;
         }
     }
 
@@ -31,7 +33,7 @@ public class HeightMapRenderer
     {
         if (x < frame.X1 || x >= frame.X2 || z < frame.Y1 || z >= frame.Y2)
             return;
-        squaredDistanceMap[(z - frame.Y1) * (frame.X2 - frame.X1) + (x - frame.X1)] = (float) y * (float) y;
+        input[(z - frame.Y1) * (frame.X2 - frame.X1) + (x - frame.X1)] = (float) y;
     }
 
     // http://members.chello.at/easyfilter/bresenham.c
@@ -52,7 +54,7 @@ public class HeightMapRenderer
         x1 = y1 = z1 = dm / 2;
         for (;;)
         {
-            squaredDistanceMap[z0 * stride + x0] = Math.Min(squaredDistanceMap[z0 * stride + x0], (float) y0 * (float) y0);
+            input[z0 * stride + x0] = Math.Min(input[z0 * stride + x0], (float) y0);
             if (i-- == 0) break;
             x1 -= dx; if (x1 < 0) { x1 += dm; x0 += sx; } 
             y1 -= dy; if (y1 < 0) { y1 += dm; y0 += sy; } 
@@ -86,7 +88,7 @@ public class HeightMapRenderer
             xx += xx; zz += zz; err = dx+dz+xz;
             do
             {                              
-                squaredDistanceMap[z0 * stride + x0] = Math.Min(squaredDistanceMap[z0 * stride + x0], (float) y * (float) y);
+                input[z0 * stride + x0] = Math.Min(input[z0 * stride + x0], (float) y);
                 if (x0 == x2 && z0 == z2) return;
                 bool cond = 2*err < dx;
                 if (2*err > dz) { x0 += sx; dx -= xz; err += dz += zz; }
@@ -141,57 +143,58 @@ public class HeightMapRenderer
         QuadraticBezierSegment(x0, z0, x1, z1, x2, z2, y);
     }
 
-    // https://cs.brown.edu/people/pfelzens/papers/dt-final.pdf (Distance Transforms of Sampled Functions, Pedro F. Felzenszwalb, Daniel P. Huttenlocher)
-    private void DistanceTransformRowOrColumn(int offset, int stride, int n)
+    private void DistanceTransformPixel(int stride, int x, int y, int nx, int ny)
     {
-        int[] v = new int[n];
-        float[] z = new float[n + 1];
-        float[] aux = new float[n];
-        for (int q = 0; q < n; ++q)
-        {
-            aux[q] = squaredDistanceMap[offset + stride * q];
-        }
-        long max = (long) n * (long) n * (long) n;
-        v[0] = 0;
-        z[0] = -max;
-        z[1] = max;
-        float s;
-        int k = 0;
-        for (int q = 1; q < n; ++q)
-        {
-            do
-            {
-                int vk = v[k];
-                s = ((aux[q] + q * q) - (aux[vk] + vk * vk)) / (2 * (q - vk));
-            } while(s <= z[k--]);
-            k += 2;
-            v[k] = (int) q;
-            z[k] = s;
-            z[k + 1] = max;
-        }
-        k = 0;
-        for (int q = 0; q < n; ++q)
-        {
-            while (z[k + 1] < q)
-            {
-                ++k;
-            }
-            int vk = v[k];
-            squaredDistanceMap[offset + stride * q] = (q - vk) * (q - vk) + aux[vk];
-        }
+        int pixelIndex = y * stride + x;
+        (int diffX, int diffY, float currentValue) = output[pixelIndex];
+        (diffX, diffY, _) = output[ny * stride + nx];
+        diffX += nx - x;
+        diffY += ny - y;
+        float newValue = (float) Math.Sqrt(diffX * diffX + diffY * diffY);
+        if (currentValue > newValue)
+            output[pixelIndex] = (diffX, diffY, newValue);
     }
 
+    // Cuisenaire, Olivier, and Benoit Macq. "Fast and exact signed Euclidean distance transformation with linear complexity."
+    // 1999 IEEE International Conference on Acoustics, Speech, and Signal Processing.
+    // https://infoscience.epfl.ch/server/api/core/bitstreams/3334e273-b447-47a2-981b-cb884ae7407d/content
     public void DistanceTransform()
     {
         int width = frame.X2 - frame.X1;
         int height = frame.Y2 - frame.Y1;
+        for (int i = 0; i < width * height; ++i)
+        {
+            output[i] = (0, 0, input[i]);
+        }
         for (int y = 0; y < height; ++y)
         {
-            DistanceTransformRowOrColumn(y * width, 1, width);
+            for (int x = 0; x < width; ++x)
+            {
+                if (x > 0)
+                    DistanceTransformPixel(width, x, y, x - 1, y);
+                if (y > 0)
+                    DistanceTransformPixel(width, x, y, x, y - 1);
+            }
+            for (int x = width - 1; x >= 0; --x)
+            {
+                if (x < width - 1)
+                    DistanceTransformPixel(width, x, y, x + 1, y);
+            }
         }
-        for (int x = 0; x < width; ++x)
+        for (int y = height - 1; y >= 0; --y)
         {
-            DistanceTransformRowOrColumn(x, width, height);
+            for (int x = width - 1; x >= 0; --x)
+            {
+                if (x < width - 1)
+                    DistanceTransformPixel(width, x, y, x + 1, y);
+                if (y < height - 1)
+                    DistanceTransformPixel(width, x, y, x, y + 1);
+            }
+            for (int x = 0; x < width; ++x)
+            {
+                if (x > 0)
+                    DistanceTransformPixel(width, x, y, x - 1, y);
+            }
         }
     }
 }

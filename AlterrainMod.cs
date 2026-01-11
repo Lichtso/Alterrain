@@ -86,7 +86,7 @@ namespace Alterrain
                         for (int lX = 0; lX < GlobalConstants.ChunkSize; lX++)
                         {
                             double depression = GameMath.BiLerp(depressionUpLeft, depressionUpRight, depressionBotLeft, depressionBotRight, lX * chunkBlockDelta, lZ * chunkBlockDelta);
-                            double distance = Math.Sqrt(renderer.squaredDistanceMap[(chunkGlobalZ - renderer.frame.Y1 + lZ) * stride + (chunkGlobalX - renderer.frame.X1 + lX)]);
+                            (_, _, float distance) = renderer.output[(chunkGlobalZ - renderer.frame.Y1 + lZ) * stride + (chunkGlobalX - renderer.frame.X1 + lX)];
                             double height = Math.Min(TerraGenConfig.seaLevel + slopeProfile.distanceToHeight(distance * depression), api.WorldManager.MapSizeY - 3);
                             heightMap[lZ * GlobalConstants.ChunkSize + lX] = (ushort) height;
                         }
@@ -120,9 +120,9 @@ namespace Alterrain
             {
                 for (int pixelX = 0; pixelX < mapRegion.ForestMap.Size; ++pixelX)
                 {
-                    double distToRiver = Math.Sqrt(renderer.squaredDistanceMap[
+                    (_, _, float distToRiver) = renderer.output[
                         (forestMapOrigZ + pixelZ * TerraGenConfig.forestMapScale) * stride + (forestMapOrigX + pixelX * TerraGenConfig.forestMapScale)
-                    ]);
+                    ];
                     mapRegion.ForestMap.Data[pixelZ * mapRegion.ForestMap.Size + pixelX] = (int) (511.0 * Math.Max(0.0, 1.0 - Math.Abs(distToRiver - 40.0) / 30.0));
                 }
             }
