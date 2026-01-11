@@ -55,7 +55,7 @@ namespace Alterrain
                     }
                     foreach (QuadraticBezierCurve segment in drainageSystem)
                     {
-                        renderer.QuadraticBezierCurve(segment.a.X, segment.a.Y, segment.b.X, segment.b.Y, segment.c.X, segment.c.Y, segment.height);
+                        segment.Plot(renderer.frame, renderer.PlotPoint);
                     }
                 }
             }
