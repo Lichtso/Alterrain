@@ -147,7 +147,7 @@ public class Basin
         return (squaredDistance, closestBasinIndex);
     }
 
-    public List<QuadraticBezierCurve> GenerateDrainageSystem(LCGRandom rng, FastVec2i basinCoord, float maxMountainHeight)
+    public List<QuadraticBezierCurve> GenerateDrainageSystem(LCGRandom rng, FastVec2i basinCoord, float mountainStreamStartHeight)
     {
         List<FastVec2i> topologicallySorted = new List<FastVec2i>();
         FastVec2i rootNodeCoord = RiverNode.CoordsAt(neighborCenter[12].X, neighborCenter[12].Y);
@@ -233,7 +233,8 @@ public class Basin
             if (upstreamNode.flow > 1.0F)
                 segment.a = (segment.a + segment.b) / 2;
             segment.c = (segment.c + segment.b) / 2;
-            segment.height = (int) Math.Max(0.0F, maxMountainHeight - upstreamNode.flow * 8.0F);
+            float x = 1.0F - Math.Min(1.0F, upstreamNode.flow / 50.0F);
+            segment.height = (int) (x * x * x * mountainStreamStartHeight);
             drainageSystem.Add(segment);
         }
         return drainageSystem;

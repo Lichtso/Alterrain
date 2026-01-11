@@ -27,7 +27,7 @@ namespace Alterrain
 
         private void OnMapRegionGen(IMapRegion mapRegion, int regionX, int regionZ, ITreeAttribute chunkGenParams = null)
         {
-            float maxMountainHeight = (float) (api.WorldManager.MapSizeY - TerraGenConfig.seaLevel) - 7.0F;
+            float mountainStreamStartHeight = (float) (api.WorldManager.MapSizeY - TerraGenConfig.seaLevel) - 55.0F;
             HeightMapRenderer renderer = new HeightMapRenderer(new Rectanglei(
                 (regionX - 1) * api.WorldManager.RegionSize,
                 (regionZ - 1) * api.WorldManager.RegionSize,
@@ -50,7 +50,7 @@ namespace Alterrain
                     if (!drainageSystems.TryGetValue(basinCoord, out drainageSystem))
                     {
                         Basin basin = new Basin(rng, basinCoord);
-                        drainageSystem = basin.GenerateDrainageSystem(rng, basinCoord, maxMountainHeight);
+                        drainageSystem = basin.GenerateDrainageSystem(rng, basinCoord, mountainStreamStartHeight);
                         drainageSystems.Add(basinCoord, drainageSystem);
                     }
                     foreach (QuadraticBezierCurve segment in drainageSystem)
