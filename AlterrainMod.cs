@@ -77,17 +77,17 @@ namespace Alterrain
                     (double depressionUpRight, _) = centalBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX + GlobalConstants.ChunkSize, chunkGlobalZ));
                     (double depressionBotLeft, _) = centalBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX, chunkGlobalZ + GlobalConstants.ChunkSize));
                     (double depressionBotRight, _) = centalBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX + GlobalConstants.ChunkSize, chunkGlobalZ + GlobalConstants.ChunkSize));
-                    depressionUpLeft = Math.Min(1.0, Math.Sqrt(depressionUpLeft) * depressionStrength);
-                    depressionUpRight = Math.Min(1.0, Math.Sqrt(depressionUpRight) * depressionStrength);
-                    depressionBotLeft = Math.Min(1.0, Math.Sqrt(depressionBotLeft) * depressionStrength);
-                    depressionBotRight = Math.Min(1.0, Math.Sqrt(depressionBotRight) * depressionStrength);
+                    depressionUpLeft = Math.Sqrt(depressionUpLeft) * depressionStrength;
+                    depressionUpRight = Math.Sqrt(depressionUpRight) * depressionStrength;
+                    depressionBotLeft = Math.Sqrt(depressionBotLeft) * depressionStrength;
+                    depressionBotRight = Math.Sqrt(depressionBotRight) * depressionStrength;
                     for (int lZ = 0; lZ < GlobalConstants.ChunkSize; lZ++)
                     {
                         for (int lX = 0; lX < GlobalConstants.ChunkSize; lX++)
                         {
                             double depression = GameMath.BiLerp(depressionUpLeft, depressionUpRight, depressionBotLeft, depressionBotRight, lX * chunkBlockDelta, lZ * chunkBlockDelta);
                             (_, _, float distance) = renderer.output[(chunkGlobalZ - renderer.frame.Y1 + lZ) * stride + (chunkGlobalX - renderer.frame.X1 + lX)];
-                            double height = Math.Min(TerraGenConfig.seaLevel + slopeProfile.distanceToHeight(distance * depression), api.WorldManager.MapSizeY - 3);
+                            double height = Math.Min(TerraGenConfig.seaLevel + slopeProfile.distanceToHeight(distance * GameMath.Clamp(depression, 0.2, 1.0)) + 50.0 * Math.Min(0.0, depression - 0.2), api.WorldManager.MapSizeY - 3);
                             heightMap[lZ * GlobalConstants.ChunkSize + lX] = (ushort) height;
                         }
                     }
