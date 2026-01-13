@@ -55,7 +55,8 @@ namespace Alterrain
                     }
                     foreach (QuadraticBezierCurve segment in drainageSystem)
                     {
-                        segment.Plot(renderer.frame, renderer.PlotPoint);
+                        if (segment.bounds.X1 >= renderer.frame.X1 && segment.bounds.X2 < renderer.frame.X2 && segment.bounds.Y1 >= renderer.frame.Y1 && segment.bounds.Y2 < renderer.frame.Y2)
+                            segment.Plot(renderer.frame, renderer.PlotPoint);
                     }
                 }
             }

@@ -235,6 +235,7 @@ public class Basin
             segment.c = (segment.c + segment.b) / 2;
             float x = 1.0F - Math.Min(1.0F, upstreamNode.flow / 50.0F);
             segment.height = (int) (x * x * x * mountainStreamStartHeight);
+            segment.UpdateBounds();
             drainageSystem.Add(segment);
         }
         return drainageSystem;

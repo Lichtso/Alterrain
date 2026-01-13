@@ -10,6 +10,16 @@ public struct QuadraticBezierCurve
     public FastVec2i b;
     public FastVec2i c;
     public int height;
+    public Rectanglei bounds;
+
+    public void UpdateBounds()
+    {
+        int minX = Math.Min(a.X, Math.Min(b.X, c.X));
+        int minY = Math.Min(a.Y, Math.Min(b.Y, c.Y));
+        int maxX = Math.Max(a.X, Math.Max(b.X, c.X));
+        int maxY = Math.Max(a.Y, Math.Max(b.Y, c.Y));
+        bounds = new Rectanglei(minX, minY, maxX - minX, maxY - minY);
+    }
 
     // http://members.chello.at/easyfilter/bresenham.c
     private static void PlotSegment(int x0, int z0, int x1, int z1, int x2, int z2, int y, PlotDelegate3D PlotPoint)
@@ -50,10 +60,6 @@ public struct QuadraticBezierCurve
     // http://members.chello.at/easyfilter/bresenham.c
     public void Plot(Rectanglei frame, PlotDelegate3D PlotPoint)
     {
-        if (a.X < frame.X1 || a.X >= frame.X2 || a.Y < frame.Y1 || a.Y >= frame.Y2 ||
-            b.X < frame.X1 || b.X >= frame.X2 || b.Y < frame.Y1 || b.Y >= frame.Y2 ||
-            c.X < frame.X1 || c.X >= frame.X2 || c.Y < frame.Y1 || c.Y >= frame.Y2)
-            return;
         int x0 = a.X - frame.X1;
         int z0 = a.Y - frame.Y1;
         int x1 = b.X - frame.X1;
