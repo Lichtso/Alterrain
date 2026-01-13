@@ -5,6 +5,7 @@ using Vintagestory.API.Common;
 using Vintagestory.API.Datastructures;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
+using Vintagestory.API.Util;
 using Vintagestory.ServerMods;
 
 namespace Alterrain
@@ -34,23 +35,27 @@ namespace Alterrain
                 api.WorldManager.RegionSize * 3,
                 api.WorldManager.RegionSize * 3
             ));
-            FastVec2i centralBasinCoord = new FastVec2i(
-                (renderer.frame.X2 + renderer.frame.X1) / (2 * Basin.cellSpacing),
-                (renderer.frame.Y2 + renderer.frame.Y1) / (2 * Basin.cellSpacing)
+            ITreeAttribute worldConfig = api.WorldManager.SaveGame.WorldConfiguration;
+            float landformScale = worldConfig.GetString("landformScale", "1").ToFloat(1);
+            int cellSpacing = (int) (landformScale * 3500.0F);
+            FastVec2i basinCoord = new FastVec2i(
+                (renderer.frame.X2 + renderer.frame.X1) / (2 * cellSpacing),
+                (renderer.frame.Y2 + renderer.frame.Y1) / (2 * cellSpacing)
             );
+            Basin centralBasin = new Basin(rng, cellSpacing, basinCoord);
             for (int z = 0; z < 3; ++z)
             {
                 for (int x = 0; x < 3; ++x)
                 {
-                    FastVec2i basinCoord = new FastVec2i(
-                        centralBasinCoord.X + x - 1,
-                        centralBasinCoord.Y + z - 1
+                    basinCoord = new FastVec2i(
+                        centralBasin.coord.X + x - 1,
+                        centralBasin.coord.Y + z - 1
                     );
                     List<QuadraticBezierCurve> drainageSystem;
                     if (!drainageSystems.TryGetValue(basinCoord, out drainageSystem))
                     {
-                        Basin basin = new Basin(rng, basinCoord);
-                        drainageSystem = basin.GenerateDrainageSystem(rng, basinCoord, mountainStreamStartHeight);
+                        Basin basin = new Basin(rng, cellSpacing, basinCoord);
+                        drainageSystem = basin.GenerateDrainageSystem(rng, mountainStreamStartHeight);
                         drainageSystems.Add(basinCoord, drainageSystem);
                     }
                     foreach (QuadraticBezierCurve segment in drainageSystem)
@@ -61,8 +66,7 @@ namespace Alterrain
                 }
             }
             renderer.DistanceTransform();
-            Basin centalBasin = new Basin(rng, centralBasinCoord);
-            centalBasin.InitClimate(api, rng, centralBasinCoord);
+            centralBasin.InitClimate(api, rng);
             int stride = renderer.frame.X2 - renderer.frame.X1;
             const float chunkBlockDelta = 1.0f / GlobalConstants.ChunkSize;
             int regionChunkSize = api.WorldManager.RegionSize / GlobalConstants.ChunkSize;
@@ -73,11 +77,11 @@ namespace Alterrain
                 {
                     int chunkGlobalX = renderer.frame.X1 + api.WorldManager.RegionSize + rlX * GlobalConstants.ChunkSize;
                     int chunkGlobalZ = renderer.frame.Y1 + api.WorldManager.RegionSize + rlZ * GlobalConstants.ChunkSize;
-                    double depressionStrength = 2.0 / Basin.cellSpacing;
-                    (double depressionUpLeft, _) = centalBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX, chunkGlobalZ));
-                    (double depressionUpRight, _) = centalBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX + GlobalConstants.ChunkSize, chunkGlobalZ));
-                    (double depressionBotLeft, _) = centalBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX, chunkGlobalZ + GlobalConstants.ChunkSize));
-                    (double depressionBotRight, _) = centalBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX + GlobalConstants.ChunkSize, chunkGlobalZ + GlobalConstants.ChunkSize));
+                    double depressionStrength = 2.0 / centralBasin.cellSpacing;
+                    (double depressionUpLeft, _) = centralBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX, chunkGlobalZ));
+                    (double depressionUpRight, _) = centralBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX + GlobalConstants.ChunkSize, chunkGlobalZ));
+                    (double depressionBotLeft, _) = centralBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX, chunkGlobalZ + GlobalConstants.ChunkSize));
+                    (double depressionBotRight, _) = centralBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX + GlobalConstants.ChunkSize, chunkGlobalZ + GlobalConstants.ChunkSize));
                     depressionUpLeft = Math.Sqrt(depressionUpLeft) * depressionStrength;
                     depressionUpRight = Math.Sqrt(depressionUpRight) * depressionStrength;
                     depressionBotLeft = Math.Sqrt(depressionBotLeft) * depressionStrength;
@@ -109,10 +113,10 @@ namespace Alterrain
             {
                 for (int pixelX = 0; pixelX < mapRegion.ClimateMap.Size; ++pixelX)
                 {
-                    (_, int closestBasinIndex) = centalBasin.FindClosestBasin(2, 2, new FastVec2i(
+                    (_, int closestBasinIndex) = centralBasin.FindClosestBasin(2, 2, new FastVec2i(
                         climateMapOrigX + pixelX * TerraGenConfig.climateMapScale, climateMapOrigZ + pixelZ * TerraGenConfig.climateMapScale
                     ));
-                    mapRegion.ClimateMap.Data[pixelZ * mapRegion.ClimateMap.Size + pixelX] = centalBasin.neighborClimate[closestBasinIndex];
+                    mapRegion.ClimateMap.Data[pixelZ * mapRegion.ClimateMap.Size + pixelX] = centralBasin.neighborClimate[closestBasinIndex];
                 }
             }
             int forestMapOrigX = api.WorldManager.RegionSize - mapRegion.ForestMap.TopLeftPadding * TerraGenConfig.forestMapScale;
@@ -137,10 +141,10 @@ namespace Alterrain
             {
                 for (int pixelX = 0; pixelX < mapRegion.GeologicProvinceMap.Size; ++pixelX)
                 {
-                    (double depression, _) = centalBasin.FindClosestBasin(2, 2, new FastVec2i(
+                    (double depression, _) = centralBasin.FindClosestBasin(2, 2, new FastVec2i(
                         geoProvMapOrigZ + pixelZ * TerraGenConfig.geoProvMapScale, geoProvMapOrigX + pixelX * TerraGenConfig.geoProvMapScale
                     ));
-                    depression = Math.Sqrt(depression) / Basin.cellSpacing;
+                    depression = Math.Sqrt(depression) / centralBasin.cellSpacing;
                     mapRegion.GeologicProvinceMap.Data[pixelZ * mapRegion.GeologicProvinceMap.Size + pixelX] = (depression < 0.2) ? 3 : (depression < 0.4) ? 2 : 0;
                 }
             }

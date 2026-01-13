@@ -32,8 +32,8 @@ public struct RiverNode
         );
         position.X += rng.NextInt(cellWidth / 2) - cellWidth / 4;
         position.Y += rng.NextInt(cellHeight / 2) - cellHeight / 4;
-        int basinCellX = GameMath.Clamp(position.X / Basin.cellSpacing - basinCoord.X + 2, 1, 3);
-        int basinCellZ = GameMath.Clamp(position.Y / Basin.cellSpacing - basinCoord.Y + 2, 1, 3);
+        int basinCellX = GameMath.Clamp(position.X / basin.cellSpacing - basinCoord.X + 2, 1, 3);
+        int basinCellZ = GameMath.Clamp(position.Y / basin.cellSpacing - basinCoord.Y + 2, 1, 3);
         (double squaredDistance, int closestBasinIndex) = basin.FindClosestBasin(basinCellX, basinCellZ, position);
         flow = (closestBasinIndex == 12) ? 1.0F : 0.0F;
         this.squaredDistance = (float) squaredDistance;
@@ -44,28 +44,30 @@ public struct RiverNode
 
 public class Basin
 {
+    public int cellSpacing;
+    public FastVec2i coord;
     public FastVec2i[] neighborCenter;
     public int[] neighborClimate;
 
-    public const int cellSpacing = 2048;
-
-    public Basin(LCGRandom rng, FastVec2i basinCoord)
+    public Basin(LCGRandom rng, int cellSpacing, FastVec2i coord)
     {
+        this.cellSpacing = cellSpacing;
+        this.coord = coord;
         neighborCenter = new FastVec2i[25];
         for (int z = 0; z < 5; ++z)
         {
             for (int x = 0; x < 5; ++x)
             {
-                rng.InitPositionSeed(basinCoord.X + x - 2, basinCoord.Y + z - 2);
+                rng.InitPositionSeed(coord.X + x - 2, coord.Y + z - 2);
                 neighborCenter[z * 5 + x] = new FastVec2i(
-                    (basinCoord.X + x - 2) * cellSpacing + rng.NextInt(cellSpacing),
-                    (basinCoord.Y + z - 2) * cellSpacing + rng.NextInt(cellSpacing)
+                    (coord.X + x - 2) * cellSpacing + rng.NextInt(cellSpacing),
+                    (coord.Y + z - 2) * cellSpacing + rng.NextInt(cellSpacing)
                 );
             }
         }
     }
 
-    public void InitClimate(ICoreServerAPI api, LCGRandom rng, FastVec2i basinCoord)
+    public void InitClimate(ICoreServerAPI api, LCGRandom rng)
     {
         neighborClimate = new int[25];
         ITreeAttribute worldConfig = api.WorldManager.SaveGame.WorldConfiguration;
@@ -97,10 +99,10 @@ public class Basin
         {
             for (int x = 0; x < 5; ++x)
             {
-                rng.InitPositionSeed(basinCoord.X + x - 2, basinCoord.Y + z - 2);
+                rng.InitPositionSeed(coord.X + x - 2, coord.Y + z - 2);
                 FastVec2i center = new FastVec2i(
-                    (basinCoord.X + x - 2) * cellSpacing + rng.NextInt(cellSpacing),
-                    (basinCoord.Y + z - 2) * cellSpacing + rng.NextInt(cellSpacing)
+                    (coord.X + x - 2) * cellSpacing + rng.NextInt(cellSpacing),
+                    (coord.Y + z - 2) * cellSpacing + rng.NextInt(cellSpacing)
                 );
                 switch (climate)
                 {
@@ -147,11 +149,11 @@ public class Basin
         return (squaredDistance, closestBasinIndex);
     }
 
-    public List<QuadraticBezierCurve> GenerateDrainageSystem(LCGRandom rng, FastVec2i basinCoord, float mountainStreamStartHeight)
+    public List<QuadraticBezierCurve> GenerateDrainageSystem(LCGRandom rng, float mountainStreamStartHeight)
     {
         List<FastVec2i> topologicallySorted = new List<FastVec2i>();
         FastVec2i rootNodeCoord = RiverNode.CoordsAt(neighborCenter[12].X, neighborCenter[12].Y);
-        RiverNode rootNode = new RiverNode(rng, basinCoord, this, rootNodeCoord);
+        RiverNode rootNode = new RiverNode(rng, coord, this, rootNodeCoord);
         IDictionary<FastVec2i, RiverNode> nodes = new Dictionary<FastVec2i, RiverNode>();
         nodes.Add(rootNodeCoord, rootNode);
         topologicallySorted.Add(rootNodeCoord);
@@ -174,7 +176,7 @@ public class Basin
                 RiverNode neighborNode;
                 if (!nodes.TryGetValue(neighborNodeCoord, out neighborNode))
                 {
-                    neighborNode = new RiverNode(rng, basinCoord, this, neighborNodeCoord);
+                    neighborNode = new RiverNode(rng, coord, this, neighborNodeCoord);
                     if (neighborNode.flow > 0.0)
                     {
                         nodes.Add(neighborNodeCoord, neighborNode);
@@ -183,7 +185,7 @@ public class Basin
                 }
             }
         }
-        rng.InitPositionSeed(basinCoord.X, basinCoord.Y);
+        rng.InitPositionSeed(coord.X, coord.Y);
         for (int i = topologicallySorted.Count - 1; i >= 0; --i)
         {
             FastVec2i nodeCoord = topologicallySorted[i];
