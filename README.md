@@ -15,15 +15,18 @@ It does however work well with extra high worlds which the vanilla generator dis
 ### Missing Features
 
 - No mod config file
-- Geological provinces and rock strata continue to use the vanilla generator and thus do not match the landscape
+- No integration for ruins or story buildings, thus the Homo Sapiens game mode is the only fully playable for now
+- Rock strata continue to use the vanilla generator and thus do not match the landscape
 - Oceans, beaches and salt water are disabled
 - Rivers have no movement or current
+- Rivers are missing proper deltas
+- Mountain streams do create grooves but are not filled with flowing water
 - The world generation configuration parameters are ignored:
     - landcover
     - oceanscale
     - upheavelCommonness
-    - landformScale
 - There are no landforms yet:
     - Vulcanos
     - Dunes
     - Cliffs
+- Aestetics: Lakes and their rivers "look like spagetti monster" on the map
