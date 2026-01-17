@@ -13,12 +13,18 @@ namespace Alterrain
     public class AlterrainMod : ModStdWorldGen
     {
         ICoreServerAPI api;
+        IWorldGenBlockAccessor blockAccessor;
         int mantleBlockId;
         int defaultRockId;
         int waterBlockId;
         SlopeProfile slopeProfile;
         IDictionary<FastVec2i, List<QuadraticBezierCurve>> drainageSystems;
         LCGRandom rng;
+
+        private void OnWorldGenBlockAccessor(IChunkProviderThread chunkProvider)
+        {
+            blockAccessor = chunkProvider.GetBlockAccessor(true);
+        }
 
         private void OnInitWorldGen()
         {
@@ -156,6 +162,7 @@ namespace Alterrain
 
         private void OnChunkColumnGen(IChunkColumnGenerateRequest request)
         {
+            blockAccessor.BeginColumn();
             int regionChunkSize = api.WorldManager.RegionSize / GlobalConstants.ChunkSize;
             int rlX = request.ChunkX % regionChunkSize;
             int rlZ = request.ChunkZ % regionChunkSize;
@@ -239,6 +246,7 @@ namespace Alterrain
             IWorldGenHandler handles = api.Event.GetRegisteredWorldGenHandlers("standard");
             var GenTerra = handles.OnChunkColumnGen[(int)EnumWorldGenPass.Terrain].FindIndex(a => a.Method.DeclaringType == typeof(GenTerra));
             handles.OnChunkColumnGen[(int)EnumWorldGenPass.Terrain].RemoveAt(GenTerra);
+            api.Event.GetWorldgenBlockAccessor(OnWorldGenBlockAccessor);
             api.Event.InitWorldGenerator(OnInitWorldGen, "standard");
             handles.OnMapRegionGen.Add(OnMapRegionGen);
             handles.OnChunkColumnGen[(int)EnumWorldGenPass.Terrain].Insert(0, OnChunkColumnGen);
