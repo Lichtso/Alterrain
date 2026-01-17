@@ -166,7 +166,7 @@ namespace Alterrain
             ushort[] rainheightmap = mapChunk.RainHeightMap;
             ushort[] terrainheightmap = mapChunk.WorldGenTerrainHeightMap;
             IChunkBlocks chunkBlockData = request.Chunks[0].Data;
-            mapChunk.YMax = 0;
+            ushort YMax = 0;
             ushort YMin = (ushort) api.WorldManager.MapSizeY;
             for (int lZ = 0; lZ < GlobalConstants.ChunkSize; lZ++)
             {
@@ -174,7 +174,7 @@ namespace Alterrain
                 {
                     ushort height = heightMap[lZ * GlobalConstants.ChunkSize + lX];
                     YMin = Math.Min(YMin, height);
-                    mapChunk.YMax = Math.Max(mapChunk.YMax, height);
+                    YMax = Math.Max(YMax, height);
                 }
             }
             ++YMin;
@@ -194,22 +194,23 @@ namespace Alterrain
                 for (int lX = 0; lX < GlobalConstants.ChunkSize; lX++)
                 {
                     int offset = lZ * GlobalConstants.ChunkSize + lX;
-                    int YMax = heightMap[offset];
-                    rainheightmap[offset] = (ushort) Math.Max(YMax, TerraGenConfig.seaLevel - 1);
-                    terrainheightmap[offset] = (ushort) YMax;
-                    ++YMax;
-                    for (int lY = YMin; lY < YMax; lY++)
+                    int height = heightMap[offset];
+                    rainheightmap[offset] = (ushort) Math.Max(height, TerraGenConfig.seaLevel - 1);
+                    terrainheightmap[offset] = (ushort) height;
+                    ++height;
+                    for (int lY = YMin; lY < height; lY++)
                     {
                         chunkBlockData = request.Chunks[lY / GlobalConstants.ChunkSize].Data;
                         chunkBlockData[(lY % GlobalConstants.ChunkSize) * stride + offset] = defaultRockId;
                     }
-                    for (int lY = YMax; lY < TerraGenConfig.seaLevel; lY++)
+                    for (int lY = height; lY < TerraGenConfig.seaLevel; lY++)
                     {
                         chunkBlockData = request.Chunks[lY / GlobalConstants.ChunkSize].Data;
                         chunkBlockData.SetFluid((lY % GlobalConstants.ChunkSize) * stride + offset, waterBlockId);
                     }
                 }
             }
+            mapChunk.YMax = YMax;
         }
 
         public override bool ShouldLoad(EnumAppSide side)
