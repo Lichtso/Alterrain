@@ -20,6 +20,7 @@ namespace Alterrain
         SlopeProfile slopeProfile;
         IDictionary<FastVec2i, List<QuadraticBezierCurve>> drainageSystems;
         LCGRandom rng;
+        HexGrid riverGrid;
 
         private void OnWorldGenBlockAccessor(IChunkProviderThread chunkProvider)
         {
@@ -30,6 +31,9 @@ namespace Alterrain
         {
             drainageSystems = new Dictionary<FastVec2i, List<QuadraticBezierCurve>>();
             rng = new LCGRandom(api.WorldManager.Seed);
+            ITreeAttribute worldConfig = api.WorldManager.SaveGame.WorldConfiguration;
+            float landformScale = worldConfig.GetString("landformScale", "1").ToFloat(1);
+            riverGrid = new HexGrid((int) (landformScale * 64.0F));
         }
 
         private void OnMapRegionGen(IMapRegion mapRegion, int regionX, int regionZ, ITreeAttribute chunkGenParams = null)
@@ -61,7 +65,7 @@ namespace Alterrain
                     if (!drainageSystems.TryGetValue(basinCoord, out drainageSystem))
                     {
                         Basin basin = new Basin(rng, cellSpacing, basinCoord);
-                        drainageSystem = basin.GenerateDrainageSystem(rng, mountainStreamStartHeight);
+                        drainageSystem = basin.GenerateDrainageSystem(riverGrid, rng, mountainStreamStartHeight);
                         drainageSystems.Add(basinCoord, drainageSystem);
                     }
                     foreach (QuadraticBezierCurve segment in drainageSystem)
