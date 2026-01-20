@@ -21,6 +21,7 @@ namespace Alterrain
         IDictionary<FastVec2i, List<QuadraticBezierCurve>> drainageSystems;
         LCGRandom rng;
         HexGrid riverGrid;
+        HexGrid basinGrid;
 
         private void OnWorldGenBlockAccessor(IChunkProviderThread chunkProvider)
         {
@@ -34,6 +35,7 @@ namespace Alterrain
             ITreeAttribute worldConfig = api.WorldManager.SaveGame.WorldConfiguration;
             float landformScale = worldConfig.GetString("landformScale", "1").ToFloat(1);
             riverGrid = new HexGrid((int) (landformScale * 64.0F));
+            basinGrid = new HexGrid((int) (landformScale * 3500.0F));
         }
 
         private void OnMapRegionGen(IMapRegion mapRegion, int regionX, int regionZ, ITreeAttribute chunkGenParams = null)
@@ -45,38 +47,29 @@ namespace Alterrain
                 api.WorldManager.RegionSize * 3,
                 api.WorldManager.RegionSize * 3
             ));
-            ITreeAttribute worldConfig = api.WorldManager.SaveGame.WorldConfiguration;
-            float landformScale = worldConfig.GetString("landformScale", "1").ToFloat(1);
-            int cellSpacing = (int) (landformScale * 3500.0F);
-            FastVec2i basinCoord = new FastVec2i(
-                (renderer.frame.X2 + renderer.frame.X1) / (2 * cellSpacing),
-                (renderer.frame.Y2 + renderer.frame.Y1) / (2 * cellSpacing)
+            FastVec2i regionCenter = new FastVec2i(
+                (renderer.frame.X2 + renderer.frame.X1) / 2,
+                (renderer.frame.Y2 + renderer.frame.Y1) / 2
             );
-            Basin centralBasin = new Basin(rng, cellSpacing, basinCoord);
-            for (int z = 0; z < 3; ++z)
+            FastVec2i basinCoord = basinGrid.CartesianToHex(regionCenter);
+            (_, FastVec2i closestBasinCoord) = basinGrid.VoronoiClosest(rng, regionCenter);
+            for (int i = 0; i < 7; ++i)
             {
-                for (int x = 0; x < 3; ++x)
+                basinCoord = closestBasinCoord + basinGrid.neighborHexOffsets[i];
+                List<QuadraticBezierCurve> drainageSystem;
+                if (!drainageSystems.TryGetValue(basinCoord, out drainageSystem))
                 {
-                    basinCoord = new FastVec2i(
-                        centralBasin.coord.X + x - 1,
-                        centralBasin.coord.Y + z - 1
-                    );
-                    List<QuadraticBezierCurve> drainageSystem;
-                    if (!drainageSystems.TryGetValue(basinCoord, out drainageSystem))
-                    {
-                        Basin basin = new Basin(rng, cellSpacing, basinCoord);
-                        drainageSystem = basin.GenerateDrainageSystem(riverGrid, rng, mountainStreamStartHeight);
-                        drainageSystems.Add(basinCoord, drainageSystem);
-                    }
-                    foreach (QuadraticBezierCurve segment in drainageSystem)
-                    {
-                        if (segment.bounds.X1 >= renderer.frame.X1 && segment.bounds.X2 < renderer.frame.X2 && segment.bounds.Y1 >= renderer.frame.Y1 && segment.bounds.Y2 < renderer.frame.Y2)
-                            segment.Plot(renderer.frame, renderer.PlotPoint);
-                    }
+                    Basin basin = new Basin(rng, basinGrid, basinCoord);
+                    drainageSystem = basin.GenerateDrainageSystem(riverGrid, mountainStreamStartHeight);
+                    drainageSystems.Add(basinCoord, drainageSystem);
+                }
+                foreach (QuadraticBezierCurve segment in drainageSystem)
+                {
+                    if (segment.bounds.X1 >= renderer.frame.X1 && segment.bounds.X2 < renderer.frame.X2 && segment.bounds.Y1 >= renderer.frame.Y1 && segment.bounds.Y2 < renderer.frame.Y2)
+                        segment.Plot(renderer.frame, renderer.PlotPoint);
                 }
             }
             renderer.DistanceTransform();
-            centralBasin.InitClimate(api, rng);
             int stride = renderer.frame.X2 - renderer.frame.X1;
             const float chunkBlockDelta = 1.0f / GlobalConstants.ChunkSize;
             int regionChunkSize = api.WorldManager.RegionSize / GlobalConstants.ChunkSize;
@@ -87,11 +80,11 @@ namespace Alterrain
                 {
                     int chunkGlobalX = renderer.frame.X1 + api.WorldManager.RegionSize + rlX * GlobalConstants.ChunkSize;
                     int chunkGlobalZ = renderer.frame.Y1 + api.WorldManager.RegionSize + rlZ * GlobalConstants.ChunkSize;
-                    double depressionStrength = 2.0 / centralBasin.cellSpacing;
-                    (double depressionUpLeft, _) = centralBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX, chunkGlobalZ));
-                    (double depressionUpRight, _) = centralBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX + GlobalConstants.ChunkSize, chunkGlobalZ));
-                    (double depressionBotLeft, _) = centralBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX, chunkGlobalZ + GlobalConstants.ChunkSize));
-                    (double depressionBotRight, _) = centralBasin.FindClosestBasin(2, 2, new FastVec2i(chunkGlobalX + GlobalConstants.ChunkSize, chunkGlobalZ + GlobalConstants.ChunkSize));
+                    double depressionStrength = 4.0 / basinGrid.cellHeight;
+                    (double depressionUpLeft, _) = basinGrid.VoronoiClosest(rng, new FastVec2i(chunkGlobalX, chunkGlobalZ));
+                    (double depressionUpRight, _) = basinGrid.VoronoiClosest(rng, new FastVec2i(chunkGlobalX + GlobalConstants.ChunkSize, chunkGlobalZ));
+                    (double depressionBotLeft, _) = basinGrid.VoronoiClosest(rng, new FastVec2i(chunkGlobalX, chunkGlobalZ + GlobalConstants.ChunkSize));
+                    (double depressionBotRight, _) = basinGrid.VoronoiClosest(rng, new FastVec2i(chunkGlobalX + GlobalConstants.ChunkSize, chunkGlobalZ + GlobalConstants.ChunkSize));
                     depressionUpLeft = Math.Sqrt(depressionUpLeft) * depressionStrength;
                     depressionUpRight = Math.Sqrt(depressionUpRight) * depressionStrength;
                     depressionBotLeft = Math.Sqrt(depressionBotLeft) * depressionStrength;
@@ -117,16 +110,18 @@ namespace Alterrain
             {
                 mapRegion.OceanMap.Data[i] = 0;
             }
+            Basin centralBasin = new Basin(rng, basinGrid, basinCoord);
+            Dictionary<FastVec2i, int> climateAtBasinCoord = centralBasin.GenerateClimate(api);
             int climateMapOrigX = renderer.frame.X1 + api.WorldManager.RegionSize - mapRegion.ClimateMap.TopLeftPadding * TerraGenConfig.climateMapScale;
             int climateMapOrigZ = renderer.frame.Y1 + api.WorldManager.RegionSize - mapRegion.ClimateMap.TopLeftPadding * TerraGenConfig.climateMapScale;
             for (int pixelZ = 0; pixelZ < mapRegion.ClimateMap.Size; ++pixelZ)
             {
                 for (int pixelX = 0; pixelX < mapRegion.ClimateMap.Size; ++pixelX)
                 {
-                    (_, int closestBasinIndex) = centralBasin.FindClosestBasin(2, 2, new FastVec2i(
+                    (_, closestBasinCoord) = basinGrid.VoronoiClosest(rng, new FastVec2i(
                         climateMapOrigX + pixelX * TerraGenConfig.climateMapScale, climateMapOrigZ + pixelZ * TerraGenConfig.climateMapScale
                     ));
-                    mapRegion.ClimateMap.Data[pixelZ * mapRegion.ClimateMap.Size + pixelX] = centralBasin.neighborClimate[closestBasinIndex];
+                    mapRegion.ClimateMap.Data[pixelZ * mapRegion.ClimateMap.Size + pixelX] = climateAtBasinCoord[closestBasinCoord];
                 }
             }
             int forestMapOrigX = api.WorldManager.RegionSize - mapRegion.ForestMap.TopLeftPadding * TerraGenConfig.forestMapScale;
@@ -151,10 +146,10 @@ namespace Alterrain
             {
                 for (int pixelX = 0; pixelX < mapRegion.GeologicProvinceMap.Size; ++pixelX)
                 {
-                    (double depression, _) = centralBasin.FindClosestBasin(2, 2, new FastVec2i(
+                    (double depression, _) = basinGrid.VoronoiClosest(rng, new FastVec2i(
                         geoProvMapOrigZ + pixelZ * TerraGenConfig.geoProvMapScale, geoProvMapOrigX + pixelX * TerraGenConfig.geoProvMapScale
                     ));
-                    depression = Math.Sqrt(depression) / centralBasin.cellSpacing;
+                    depression = Math.Sqrt(depression) / basinGrid.cellHeight * 0.5;
                     mapRegion.GeologicProvinceMap.Data[pixelZ * mapRegion.GeologicProvinceMap.Size + pixelX] = (depression < 0.2) ? 3 : (depression < 0.4) ? 2 : 0;
                 }
             }

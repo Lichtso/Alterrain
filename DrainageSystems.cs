@@ -14,13 +14,11 @@ public struct RiverNode
     public float flow;
     public FastVec2i downstreamCoord;
 
-    public RiverNode(HexGrid riverGrid, LCGRandom rng, FastVec2i basinCoord, Basin basin, FastVec2i nodeCoord)
+    public RiverNode(HexGrid riverGrid, LCGRandom rng, Basin basin, FastVec2i nodeCoord)
     {
         cartesian = riverGrid.HexToCartesianWithJitter(rng, nodeCoord);
-        int basinCellX = GameMath.Clamp(cartesian.X / basin.cellSpacing - basinCoord.X + 2, 1, 3);
-        int basinCellZ = GameMath.Clamp(cartesian.Y / basin.cellSpacing - basinCoord.Y + 2, 1, 3);
-        (double squaredDistance, int closestBasinIndex) = basin.FindClosestBasin(basinCellX, basinCellZ, cartesian);
-        flow = (closestBasinIndex == 12) ? 1.0F : 0.0F;
+        (double squaredDistance, FastVec2i closestBasinCoord) = basin.basinGrid.VoronoiClosest(rng, cartesian);
+        flow = (closestBasinCoord == basin.coord) ? 1.0F : 0.0F;
         this.squaredDistance = (float) squaredDistance;
         downstreamCoord.X = -1;
         downstreamCoord.Y = -1;
@@ -29,32 +27,19 @@ public struct RiverNode
 
 public class Basin
 {
-    public int cellSpacing;
+    public LCGRandom rng;
+    public HexGrid basinGrid;
     public FastVec2i coord;
-    public FastVec2i[] neighborCenter;
-    public int[] neighborClimate;
 
-    public Basin(LCGRandom rng, int cellSpacing, FastVec2i coord)
+    public Basin(LCGRandom rng, HexGrid basinGrid, FastVec2i basinCoord)
     {
-        this.cellSpacing = cellSpacing;
-        this.coord = coord;
-        neighborCenter = new FastVec2i[25];
-        for (int z = 0; z < 5; ++z)
-        {
-            for (int x = 0; x < 5; ++x)
-            {
-                rng.InitPositionSeed(coord.X + x - 2, coord.Y + z - 2);
-                neighborCenter[z * 5 + x] = new FastVec2i(
-                    (coord.X + x - 2) * cellSpacing + rng.NextInt(cellSpacing),
-                    (coord.Y + z - 2) * cellSpacing + rng.NextInt(cellSpacing)
-                );
-            }
-        }
+        this.rng = rng;
+        this.basinGrid = basinGrid;
+        this.coord = basinCoord;
     }
 
-    public void InitClimate(ICoreServerAPI api, LCGRandom rng)
+    public Dictionary<FastVec2i, int> GenerateClimate(ICoreServerAPI api)
     {
-        neighborClimate = new int[25];
         ITreeAttribute worldConfig = api.WorldManager.SaveGame.WorldConfiguration;
         float geologicActivityInv = 1.0F / worldConfig.GetString("geologicActivity").ToFloat(0.05F);
         float temperatureModifier = worldConfig.GetString("globalTemperature", "1").ToFloat(1);
@@ -80,65 +65,40 @@ public class Basin
         }
         int temperatureOffsetZ = (int) (spawnTemperature / 255.0 * halfRange) + halfRange - api.WorldManager.MapSizeZ / 2;
         int geologicActivity = 0, temperature = 0, rain = 0;
-        for (int z = 0; z < 5; ++z)
+        Dictionary<FastVec2i, int> climateAtBasinCoord = new Dictionary<FastVec2i, int>();
+        for (int i = 0; i < 19; ++i)
         {
-            for (int x = 0; x < 5; ++x)
+            FastVec2i basinCoord = coord + basinGrid.neighborHexOffsets[i];
+            FastVec2i basinCenter = basinGrid.HexToCartesianWithJitter(rng, basinCoord);
+            switch (climate)
             {
-                rng.InitPositionSeed(coord.X + x - 2, coord.Y + z - 2);
-                FastVec2i center = new FastVec2i(
-                    (coord.X + x - 2) * cellSpacing + rng.NextInt(cellSpacing),
-                    (coord.Y + z - 2) * cellSpacing + rng.NextInt(cellSpacing)
-                );
-                switch (climate)
-                {
-                    case "realistic":
-                        geologicActivity = (int) Math.Max(0, Math.Pow(rng.NextInt(256) / 255.0F, geologicActivityInv) * 255);
-                        temperature = (int) ((double) Math.Abs((center.Y + temperatureOffsetZ) % (2 * halfRange) - halfRange) / (double) halfRange * 255.0);
-                        temperature += rng.NextInt(40) - 20;
-                        rain = rng.NextInt(256);
-                        break;
-                    default:
-                        geologicActivity = Math.Max(0, rng.NextInt(256) - 128) * 2;
-                        temperature = 165;
-                        temperature = 100 + (rng.NextInt(temperature) + rng.NextInt(temperature)) / 2;
-                        rain = 60 + temperature;
-                        rain = (rng.NextInt(rain) + rng.NextInt(rain) + rng.NextInt(rain)) / 3;
-                        break;
-                }
-                temperature = (int) Math.Min(255, temperature * temperatureModifier);
-                rain = (int) Math.Min(255, rain * rainModifier);
-                neighborClimate[z * 5 + x] = (temperature << 16) + (rain << 8) + (geologicActivity);
+                case "realistic":
+                    geologicActivity = (int) Math.Max(0, Math.Pow(rng.NextInt(256) / 255.0F, geologicActivityInv) * 255);
+                    temperature = (int) ((double) Math.Abs((basinCenter.Y + temperatureOffsetZ) % (2 * halfRange) - halfRange) / (double) halfRange * 255.0);
+                    temperature += rng.NextInt(40) - 20;
+                    rain = rng.NextInt(256);
+                    break;
+                default:
+                    geologicActivity = Math.Max(0, rng.NextInt(256) - 128) * 2;
+                    temperature = 165;
+                    temperature = 100 + (rng.NextInt(temperature) + rng.NextInt(temperature)) / 2;
+                    rain = 60 + temperature;
+                    rain = (rng.NextInt(rain) + rng.NextInt(rain) + rng.NextInt(rain)) / 3;
+                    break;
             }
+            temperature = (int) Math.Min(255, temperature * temperatureModifier);
+            rain = (int) Math.Min(255, rain * rainModifier);
+            climateAtBasinCoord.Add(basinCoord, (temperature << 16) + (rain << 8) + (geologicActivity));
         }
+        return climateAtBasinCoord;
     }
 
-    public (double, int) FindClosestBasin(int basinCellX, int basinCellZ, FastVec2i position)
+    public List<QuadraticBezierCurve> GenerateDrainageSystem(HexGrid riverGrid, float mountainStreamStartHeight)
     {
-        double squaredDistance = double.PositiveInfinity;
-        int closestBasinIndex = 25;
-        for (int z = basinCellZ - 1; z <= basinCellZ + 1; ++z)
-        {
-            for (int x = basinCellX - 1; x <= basinCellX + 1; ++x)
-            {
-                int i = z * 5 + x;
-                double diffX = neighborCenter[i].X - position.X;
-                double diffZ = neighborCenter[i].Y - position.Y;
-                double dist = diffX * diffX + diffZ * diffZ;
-                if (squaredDistance > dist)
-                {
-                    squaredDistance = dist;
-                    closestBasinIndex = i;
-                }
-            }
-        }
-        return (squaredDistance, closestBasinIndex);
-    }
-
-    public List<QuadraticBezierCurve> GenerateDrainageSystem(HexGrid riverGrid, LCGRandom rng, float mountainStreamStartHeight)
-    {
+        FastVec2i basinCenter = basinGrid.HexToCartesianWithJitter(rng, coord);
         List<FastVec2i> topologicallySorted = new List<FastVec2i>();
-        FastVec2i rootNodeCoord = riverGrid.CartesianToHex(new FastVec2i(neighborCenter[12].X, neighborCenter[12].Y));
-        RiverNode rootNode = new RiverNode(riverGrid, rng, coord, this, rootNodeCoord);
+        FastVec2i rootNodeCoord = riverGrid.CartesianToHex(new FastVec2i(basinCenter.X, basinCenter.Y));
+        RiverNode rootNode = new RiverNode(riverGrid, rng, this, rootNodeCoord);
         IDictionary<FastVec2i, RiverNode> nodes = new Dictionary<FastVec2i, RiverNode>();
         nodes.Add(rootNodeCoord, rootNode);
         topologicallySorted.Add(rootNodeCoord);
@@ -152,7 +112,7 @@ public class Basin
                 RiverNode neighborNode;
                 if (!nodes.TryGetValue(neighborNodeCoord, out neighborNode))
                 {
-                    neighborNode = new RiverNode(riverGrid, rng, coord, this, neighborNodeCoord);
+                    neighborNode = new RiverNode(riverGrid, rng, this, neighborNodeCoord);
                     if (neighborNode.flow > 0.0)
                     {
                         nodes.Add(neighborNodeCoord, neighborNode);
