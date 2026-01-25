@@ -10,16 +10,16 @@ namespace Alterrain;
 public struct RiverNode
 {
     public FastVec2i cartesian;
-    public float squaredDistance;
+    public float proximity;
     public float flow;
     public FastVec2i downstreamCoord;
 
     public RiverNode(HexGrid riverGrid, LCGRandom rng, Basin basin, FastVec2i nodeCoord)
     {
         cartesian = riverGrid.HexToCartesianWithJitter(rng, nodeCoord);
-        (double squaredDistance, FastVec2i closestBasinCoord) = basin.basinGrid.VoronoiClosest(rng, cartesian);
+        (float proximity, FastVec2i closestBasinCoord) = basin.basinGrid.BarycentricClosest(rng, cartesian);
         flow = (closestBasinCoord == basin.coord) ? 1.0F : 0.0F;
-        this.squaredDistance = (float) squaredDistance;
+        this.proximity = proximity;
         downstreamCoord.X = -1;
         downstreamCoord.Y = -1;
     }
@@ -134,7 +134,7 @@ public class Basin
                 if (nodes.TryGetValue(neighborNodeCoord, out neighborNode) &&
                     neighborNode.downstreamCoord.X == -1 &&
                     neighborNode.downstreamCoord.Y == -1 &&
-                    neighborNode.squaredDistance < node.squaredDistance)
+                    neighborNode.proximity > node.proximity)
                 {
                     candidateNodeCoords.Add(neighborNodeCoord);
                 }
