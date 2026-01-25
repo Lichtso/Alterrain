@@ -17,9 +17,9 @@ public struct RiverNode
     public RiverNode(HexGrid riverGrid, LCGRandom rng, Basin basin, FastVec2i nodeCoord)
     {
         cartesian = riverGrid.HexToCartesianWithJitter(rng, nodeCoord);
-        (float proximity, FastVec2i closestBasinCoord) = basin.basinGrid.BarycentricClosest(rng, cartesian);
-        flow = (closestBasinCoord == basin.coord) ? 1.0F : 0.0F;
-        this.proximity = proximity;
+        BarycentricTriangle triangle = basin.basinGrid.BarycentricTriangle(rng, cartesian);
+        flow = (triangle.ClosestVertex() == basin.coord) ? 1.0F : 0.0F;
+        this.proximity = (float) triangle.max;
         downstreamCoord.X = -1;
         downstreamCoord.Y = -1;
     }

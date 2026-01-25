@@ -2,6 +2,29 @@ using System;
 using Vintagestory.API.MathTools;
 using System.Runtime.CompilerServices;
 
+public struct BarycentricTriangle
+{
+    public FastVec2i vertexA, vertexB, vertexC;
+    public double a, b, c, max;
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public FastVec2i ClosestVertex()
+    {
+        if(a == max)
+            return vertexA;
+        else if(b == max)
+            return vertexB;
+        else
+            return vertexC;
+    }
+
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
+    public double Interpolate(double valA, double valB, double valC)
+    {
+        return a * valA + b * valB + c * valC;
+    }
+}
+
 public class HexGrid
 {
     public int cellHeight;
@@ -113,40 +136,34 @@ public class HexGrid
         return (squaredDistance, closestHex);
     }
 
-    public (float, FastVec2i) BarycentricClosest(LCGRandom rng, FastVec2i point)
+    public BarycentricTriangle BarycentricTriangle(LCGRandom rng, FastVec2i point)
     {
-        FastVec2i closestHex = new FastVec2i(0, 0);
-        FastVec2i centralHex = CartesianToHex(point);
-        FastVec2i centralCartesian = HexToCartesianWithJitter(rng, centralHex);
-        point -= centralCartesian;
-        FastVec2i hex = new FastVec2i(0, 0), prevHex = centralHex + neighborHexOffsets[6];
-        FastVec2i cartesian = new FastVec2i(0, 0), prevCartesian = HexToCartesianWithJitter(rng, prevHex) - centralCartesian;
-        int area = 0, prevArea = prevCartesian.Y * point.X - prevCartesian.X * point.Y;
+        BarycentricTriangle result;
+        result.vertexA = CartesianToHex(point);
+        FastVec2i cartesianA = HexToCartesianWithJitter(rng, result.vertexA);
+        point -= cartesianA;
+        result.vertexB = result.vertexA + neighborHexOffsets[6];
+        result.vertexC = new FastVec2i(0, 0);
+        FastVec2i cartesianB = HexToCartesianWithJitter(rng, result.vertexB) - cartesianA, cartesianC = new FastVec2i(0, 0);
+        int areaB = cartesianB.Y * point.X - cartesianB.X * point.Y, areaC = 0;
         for (int i = 1; i < 7; ++i)
         {
-            hex = centralHex + neighborHexOffsets[i];
-            cartesian = HexToCartesianWithJitter(rng, hex) - centralCartesian;
-            area = cartesian.Y * point.X - cartesian.X * point.Y;
-            if (prevArea <= 0 && area >= 0)
+            result.vertexC = result.vertexA + neighborHexOffsets[i];
+            cartesianC = HexToCartesianWithJitter(rng, result.vertexC) - cartesianA;
+            areaC = cartesianC.Y * point.X - cartesianC.X * point.Y;
+            if (areaB <= 0 && areaC >= 0)
             {
                 break;
             }
-            prevHex = hex;
-            prevCartesian = cartesian;
-            prevArea = area;
+            result.vertexB = result.vertexC;
+            cartesianB = cartesianC;
+            areaB = areaC;
         }
-        int denominator = cartesian.Y * prevCartesian.X - cartesian.X * prevCartesian.Y;
-        float a = (float) -prevArea / (float) denominator;
-        float b = (float) area / (float) denominator;
-        float c = 1.0F - a - b;
-        if (a > b && a > c)
-        {
-            return (a, hex);
-        }
-        else if (b > a && b > c)
-        {
-            return (b, prevHex);
-        }
-        return (c, centralHex);
+        double factor = 1.0 / (double) (cartesianC.Y * cartesianB.X - cartesianC.X * cartesianB.Y);
+        result.b = factor * areaC;
+        result.c = factor * -areaB;
+        result.a = 1.0 - result.b - result.c;
+        result.max = Math.Max(result.a, Math.Max(result.b, result.c));
+        return result;
     }
 }
