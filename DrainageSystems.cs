@@ -18,8 +18,8 @@ public struct RiverNode
     {
         cartesian = riverGrid.HexToCartesianWithJitter(rng, nodeCoord);
         BarycentricTriangle triangle = basin.basinGrid.BarycentricTriangle(rng, cartesian);
-        flow = (triangle.ClosestVertex() == basin.coord) ? 1.0F : 0.0F;
-        this.proximity = (float) triangle.max;
+        proximity = (triangle.ClosestVertex() == basin.coord) ? (float) triangle.max : float.PositiveInfinity;
+        flow = 1.0F;
         downstreamCoord.X = -1;
         downstreamCoord.Y = -1;
     }
@@ -96,71 +96,58 @@ public class Basin
     public List<QuadraticBezierCurve> GenerateDrainageSystem(HexGrid riverGrid, float mountainStreamStartHeight)
     {
         FastVec2i basinCenter = basinGrid.HexToCartesianWithJitter(rng, coord);
-        List<FastVec2i> topologicallySorted = new List<FastVec2i>();
         FastVec2i rootNodeCoord = riverGrid.CartesianToHex(new FastVec2i(basinCenter.X, basinCenter.Y));
         RiverNode rootNode = new RiverNode(riverGrid, rng, this, rootNodeCoord);
         IDictionary<FastVec2i, RiverNode> nodes = new Dictionary<FastVec2i, RiverNode>();
         nodes.Add(rootNodeCoord, rootNode);
-        topologicallySorted.Add(rootNodeCoord);
+        List<FastVec2i> topologicallySorted = new List<FastVec2i>();
+        List<FastVec2i> nodeCoordPool = new List<FastVec2i>();
         rng.InitPositionSeed(coord.X, coord.Y);
-        for (int i = 0; i < topologicallySorted.Count; ++i)
+        for (int j = 1; j < 7; ++j)
         {
-            FastVec2i nodeCoord = topologicallySorted[i];
-            RiverNode node = nodes[nodeCoord];
-            int offset = rng.NextInt(6);
-            for (int j = 0; j < 6; ++j)
-            {
-                FastVec2i neighborNodeCoord = nodeCoord + riverGrid.neighborHexOffsets[(j + offset) % 6 + 1];
-                RiverNode neighborNode;
-                if (!nodes.TryGetValue(neighborNodeCoord, out neighborNode))
-                {
-                    neighborNode = new RiverNode(riverGrid, rng, this, neighborNodeCoord);
-                    if (neighborNode.flow > 0.0)
-                    {
-                        nodes.Add(neighborNodeCoord, neighborNode);
-                        topologicallySorted.Add(neighborNodeCoord);
-                    }
-                }
-            }
+            FastVec2i upstreamNodeCoord = rootNodeCoord + riverGrid.neighborHexOffsets[j];
+            RiverNode upstreamNode = new RiverNode(riverGrid, rng, this, upstreamNodeCoord);
+            upstreamNode.downstreamCoord = rootNodeCoord;
+            nodes[upstreamNodeCoord] = upstreamNode;
+            nodeCoordPool.Add(upstreamNodeCoord);
         }
-        for (int i = topologicallySorted.Count - 1; i >= 0; --i)
+        while (nodeCoordPool.Count > 0)
         {
-            FastVec2i nodeCoord = topologicallySorted[i];
+            int i = rng.NextInt(nodeCoordPool.Count);
+            FastVec2i nodeCoord = nodeCoordPool[i];
+            nodeCoordPool[i] = nodeCoordPool[nodeCoordPool.Count - 1];
+            nodeCoordPool.RemoveAt(nodeCoordPool.Count - 1);
             RiverNode node = nodes[nodeCoord];
             int offset = rng.NextInt(6);
             for (int j = 0; j < 6; ++j)
             {
-                FastVec2i neighborNodeCoord = nodeCoord + riverGrid.neighborHexOffsets[(j + offset) % 6 + 1];
-                RiverNode neighborNode;
-                if (nodes.TryGetValue(neighborNodeCoord, out neighborNode) &&
-                    neighborNode.downstreamCoord.X == -1 &&
-                    neighborNode.downstreamCoord.Y == -1 &&
-                    neighborNode.proximity > node.proximity)
+                FastVec2i upstreamNodeCoord = nodeCoord + riverGrid.neighborHexOffsets[(j + offset) % 6 + 1];
+                RiverNode upstreamNode;
+                if (!nodes.TryGetValue(upstreamNodeCoord, out upstreamNode))
                 {
-                    node.downstreamCoord = neighborNodeCoord;
-                    RiverNode downstreamNode = nodes[node.downstreamCoord];
-                    downstreamNode.flow += node.flow;
-                    nodes[node.downstreamCoord] = downstreamNode;
-                    nodes[nodeCoord] = node;
-                    break;
+                    upstreamNode = new RiverNode(riverGrid, rng, this, upstreamNodeCoord);
+                    nodes[upstreamNodeCoord] = upstreamNode;
+                }
+                if (upstreamNode.proximity <= node.proximity &&
+                    upstreamNode.downstreamCoord.X == -1 &&
+                    upstreamNode.downstreamCoord.Y == -1)
+                {
+                    upstreamNode.downstreamCoord = nodeCoord;
+                    nodes[upstreamNodeCoord] = upstreamNode;
+                    nodeCoordPool.Add(upstreamNodeCoord);
+                    topologicallySorted.Add(upstreamNodeCoord);
                 }
             }
         }
         List<QuadraticBezierCurve> drainageSystem = new List<QuadraticBezierCurve>();
-        for (int i = 0; i < topologicallySorted.Count; ++i)
+        for (int i = topologicallySorted.Count - 1; i >= 0; --i)
         {
             FastVec2i nodeCoord = topologicallySorted[i];
             RiverNode upstreamNode = nodes[nodeCoord];
-            if (upstreamNode.downstreamCoord.X == -1 && upstreamNode.downstreamCoord.Y == -1)
-            {
-                continue;
-            }
             RiverNode node = nodes[upstreamNode.downstreamCoord];
-            if (node.downstreamCoord.X == -1 && node.downstreamCoord.Y == -1)
-            {
-                continue;
-            }
             RiverNode downstreamNode = nodes[node.downstreamCoord];
+            node.flow += upstreamNode.flow;
+            nodes[upstreamNode.downstreamCoord] = node;
             QuadraticBezierCurve segment = new QuadraticBezierCurve();
             segment.a = new FastVec2i(upstreamNode.cartesian.X, upstreamNode.cartesian.Y);
             segment.b = new FastVec2i(node.cartesian.X, node.cartesian.Y);
