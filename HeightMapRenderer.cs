@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using Vintagestory.API.MathTools;
+using Vintagestory.ServerMods;
 
 namespace Alterrain;
 
@@ -101,37 +102,40 @@ public struct QuadraticBezierCurve
 public class HeightMapRenderer
 {
     public Rectanglei frame;
-    public float[] input;
+    public byte[] input;
     public (int, int, float)[] output;
 
     public HeightMapRenderer(Rectanglei rect)
     {
         frame = rect;
-        input = new float[(frame.X2 - frame.X1) * (frame.Y2 - frame.Y1)];
+        input = new byte[(frame.X2 - frame.X1) * (frame.Y2 - frame.Y1)];
         output = new (int, int, float)[(frame.X2 - frame.X1) * (frame.Y2 - frame.Y1)];
-        for (int i = 0; i < input.Length; ++i)
-        {
-            input[i] = input.Length;
-        }
     }
 
     public void PlotPoint(int x, int y, int z)
     {
         int index = z * (frame.X2 - frame.X1) + x;
-        input[index] = Math.Min(input[index], (float) y);
+        input[index] = Math.Max(input[index], (byte) y);
     }
 
     private void DistanceTransformPixel(int stride, int x, int y, int nx, int ny)
     {
-        int pixelIndex = y * stride + x;
-        (int diffX, int diffY, float currentValue) = output[pixelIndex];
+        int destinationIndex = y * stride + x;
+        (int diffX, int diffY, float currentValue) = output[destinationIndex];
         (diffX, diffY, _) = output[ny * stride + nx];
-        float height = input[(ny + diffY) * stride + (nx + diffX)];
-        diffX += nx - x;
-        diffY += ny - y;
-        float newValue = (float) Math.Sqrt(diffX * diffX + diffY * diffY) + height;
+        nx += diffX;
+        ny += diffY;
+        int sourceIndex = ny * stride + nx;
+        (_, _, float height) = output[sourceIndex];
+        float riverDepth = (float) input[sourceIndex];
+        diffX = nx - x;
+        diffY = ny - y;
+        float distance = (float) Math.Sqrt(diffX * diffX + diffY * diffY) - riverDepth;
+        float q = riverDepth * 3.0F;
+        float s = (float) GameMath.Clamp(height - TerraGenConfig.seaLevel + riverDepth, 1, 100) * 0.01F + 0.3F;
+        float newValue = height + riverDepth + (distance < 0.0F ? distance : s * (distance < q ? distance * distance / (2.0F * q) : distance - 0.5F * q));
         if (currentValue > newValue)
-            output[pixelIndex] = (diffX, diffY, newValue);
+            output[destinationIndex] = (diffX, diffY, newValue);
     }
 
     // Cuisenaire, Olivier, and Benoit Macq. "Fast and exact signed Euclidean distance transformation with linear complexity."
@@ -141,10 +145,6 @@ public class HeightMapRenderer
     {
         int width = frame.X2 - frame.X1;
         int height = frame.Y2 - frame.Y1;
-        for (int i = 0; i < width * height; ++i)
-        {
-            output[i] = (0, 0, input[i]);
-        }
         for (int y = 0; y < height; ++y)
         {
             for (int x = 0; x < width; ++x)

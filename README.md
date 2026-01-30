@@ -19,8 +19,6 @@ It does however work well with extra high worlds which the vanilla generator dis
 - Rock strata continue to use the vanilla generator and thus do not match the landscape
 - Oceans, beaches and salt water are disabled
 - Rivers have no movement or current
-- Rivers are missing proper deltas
-- Mountain streams do create grooves but are not filled with flowing water
 - The world generation configuration parameters are ignored:
     - landcover
     - oceanscale
@@ -29,4 +27,3 @@ It does however work well with extra high worlds which the vanilla generator dis
     - Vulcanos
     - Dunes
     - Cliffs
-- Aestetics: Lakes and their rivers "look like spagetti monster" on the map

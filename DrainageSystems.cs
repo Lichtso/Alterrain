@@ -93,7 +93,7 @@ public class Basin
         return climateAtBasinCoord;
     }
 
-    public List<QuadraticBezierCurve> GenerateDrainageSystem(HexGrid riverGrid, float mountainStreamStartHeight)
+    public List<QuadraticBezierCurve> GenerateDrainageSystem(HexGrid riverGrid)
     {
         FastVec2i basinCenter = basinGrid.HexToCartesianWithJitter(rng, coord);
         FastVec2i rootNodeCoord = riverGrid.CartesianToHex(new FastVec2i(basinCenter.X, basinCenter.Y));
@@ -162,8 +162,8 @@ public class Basin
                     node.flow += upstreamNode.flow;
             }
             nodes[nodeCoord] = node;
-            double riverWidth = Math.Ceiling(node.flow / 50.0F);
-            double normalFactor = riverWidth / (node.flow * Math.Sqrt(normal.X * normal.X + normal.Y * normal.Y));
+            double riverDepth = Math.Ceiling(Math.Sqrt(node.flow));
+            double normalFactor = riverDepth / (1.4 * node.flow * Math.Sqrt(normal.X * normal.X + normal.Y * normal.Y));
             double riverOffset = -node.flow;
             for (int j = 0; j < 6; ++j)
             {
@@ -175,8 +175,7 @@ public class Basin
                 if (upstreamNode.flow > 1.0F)
                     segment.a = (segment.a + segment.b) / 2;
                 segment.c = endPoint + (riverOffset + upstreamNode.flow) * normalFactor * normal;
-                float x = 1.0F - Math.Min(1.0F, upstreamNode.flow / 50.0F);
-                segment.height = (int) (x * x * x * mountainStreamStartHeight);
+                segment.height = (int) Math.Ceiling(Math.Sqrt(upstreamNode.flow));
                 segment.UpdateBounds();
                 drainageSystem.Add(segment);
                 riverOffset += 2.0 * upstreamNode.flow;

@@ -40,13 +40,15 @@ namespace Alterrain
 
         private void OnMapRegionGen(IMapRegion mapRegion, int regionX, int regionZ, ITreeAttribute chunkGenParams = null)
         {
-            float mountainStreamStartHeight = (float) (api.WorldManager.MapSizeY - TerraGenConfig.seaLevel) - 55.0F;
+            const float chunkBlockDelta = 1.0f / GlobalConstants.ChunkSize;
+            int regionChunkSize = api.WorldManager.RegionSize / GlobalConstants.ChunkSize;
             HeightMapRenderer renderer = new HeightMapRenderer(new Rectanglei(
-                (regionX - 1) * api.WorldManager.RegionSize,
-                (regionZ - 1) * api.WorldManager.RegionSize,
-                api.WorldManager.RegionSize * 3,
-                api.WorldManager.RegionSize * 3
+                regionX * api.WorldManager.RegionSize - api.WorldManager.RegionSize / 2,
+                regionZ * api.WorldManager.RegionSize - api.WorldManager.RegionSize / 2,
+                api.WorldManager.RegionSize * 2,
+                api.WorldManager.RegionSize * 2
             ));
+            int stride = renderer.frame.X2 - renderer.frame.X1;
             FastVec2i regionCenter = new FastVec2i(
                 (renderer.frame.X2 + renderer.frame.X1) / 2,
                 (renderer.frame.Y2 + renderer.frame.Y1) / 2
@@ -60,7 +62,7 @@ namespace Alterrain
                 if (!drainageSystems.TryGetValue(basinCoord, out drainageSystem))
                 {
                     Basin basin = new Basin(rng, basinGrid, basinCoord);
-                    drainageSystem = basin.GenerateDrainageSystem(riverGrid, mountainStreamStartHeight);
+                    drainageSystem = basin.GenerateDrainageSystem(riverGrid);
                     drainageSystems.Add(basinCoord, drainageSystem);
                 }
                 foreach (QuadraticBezierCurve segment in drainageSystem)
@@ -69,17 +71,12 @@ namespace Alterrain
                         segment.Plot(renderer.frame, renderer.PlotPoint);
                 }
             }
-            renderer.DistanceTransform();
-            int stride = renderer.frame.X2 - renderer.frame.X1;
-            const float chunkBlockDelta = 1.0f / GlobalConstants.ChunkSize;
-            int regionChunkSize = api.WorldManager.RegionSize / GlobalConstants.ChunkSize;
-            ushort[] heightMap = new ushort[GlobalConstants.ChunkSize * GlobalConstants.ChunkSize];
-            for (int rlZ = 0; rlZ < regionChunkSize; ++rlZ)
+            for (int rlZ = 0; rlZ < regionChunkSize * 2; ++rlZ)
             {
-                for (int rlX = 0; rlX < regionChunkSize; ++rlX)
+                for (int rlX = 0; rlX < regionChunkSize * 2; ++rlX)
                 {
-                    int chunkGlobalX = renderer.frame.X1 + api.WorldManager.RegionSize + rlX * GlobalConstants.ChunkSize;
-                    int chunkGlobalZ = renderer.frame.Y1 + api.WorldManager.RegionSize + rlZ * GlobalConstants.ChunkSize;
+                    int chunkGlobalX = renderer.frame.X1 + rlX * GlobalConstants.ChunkSize;
+                    int chunkGlobalZ = renderer.frame.Y1 + rlZ * GlobalConstants.ChunkSize;
                     BarycentricTriangle triangleUpLeft = basinGrid.BarycentricTriangle(rng, new FastVec2i(chunkGlobalX, chunkGlobalZ));
                     BarycentricTriangle triangleUpRight = basinGrid.BarycentricTriangle(rng, new FastVec2i(chunkGlobalX + GlobalConstants.ChunkSize, chunkGlobalZ));
                     BarycentricTriangle triangleBotLeft = basinGrid.BarycentricTriangle(rng, new FastVec2i(chunkGlobalX, chunkGlobalZ + GlobalConstants.ChunkSize));
@@ -88,10 +85,36 @@ namespace Alterrain
                     {
                         for (int lX = 0; lX < GlobalConstants.ChunkSize; lX++)
                         {
-                            double depression = 2.0 - 2.0 * GameMath.BiLerp(triangleUpLeft.max, triangleUpRight.max, triangleBotLeft.max, triangleBotRight.max, lX * chunkBlockDelta, lZ * chunkBlockDelta);
-                            (_, _, float distance) = renderer.output[(chunkGlobalZ - renderer.frame.Y1 + lZ) * stride + (chunkGlobalX - renderer.frame.X1 + lX)];
-                            double height = Math.Min(TerraGenConfig.seaLevel + slopeProfile.distanceToHeight(distance * GameMath.Clamp(depression, 0.2, 1.0)) + 50.0 * Math.Min(0.0, depression - 0.2), api.WorldManager.MapSizeY - 3);
-                            heightMap[lZ * GlobalConstants.ChunkSize + lX] = (ushort) height;
+                            double proximity = GameMath.BiLerp(triangleUpLeft.max, triangleUpRight.max, triangleBotLeft.max, triangleBotRight.max, lX * chunkBlockDelta, lZ * chunkBlockDelta);
+                            int index = (chunkGlobalZ - renderer.frame.Y1 + lZ) * stride + (chunkGlobalX - renderer.frame.X1 + lX);
+                            int riverDepth = renderer.input[index];
+                            double distance = 2.0 * (1.0 - proximity);
+                            double heightFloat = (riverDepth == 0) ? api.WorldManager.MapSizeY : TerraGenConfig.seaLevel + 40.0 * distance * distance * distance - riverDepth + 10.0 * Math.Max(0, 3 - riverDepth);
+                            renderer.output[index] = (0, 0, (float) heightFloat);
+                        }
+                    }
+                }
+            }
+            renderer.DistanceTransform();
+            ushort[] heightMap = new ushort[GlobalConstants.ChunkSize * GlobalConstants.ChunkSize];
+            for (int rlZ = 0; rlZ < regionChunkSize; ++rlZ)
+            {
+                for (int rlX = 0; rlX < regionChunkSize; ++rlX)
+                {
+                    int chunkGlobalX = regionX * api.WorldManager.RegionSize + rlX * GlobalConstants.ChunkSize;
+                    int chunkGlobalZ = regionZ * api.WorldManager.RegionSize + rlZ * GlobalConstants.ChunkSize;
+                    for (int lZ = 0; lZ < GlobalConstants.ChunkSize; lZ++)
+                    {
+                        for (int lX = 0; lX < GlobalConstants.ChunkSize; lX++)
+                        {
+                            (int diffX, int diffZ, float heightFloat) = renderer.output[(chunkGlobalZ - renderer.frame.Y1 + lZ) * stride + (chunkGlobalX - renderer.frame.X1 + lX)];
+                            int height = (int) Math.Floor(heightFloat);
+                            int index = (chunkGlobalZ - renderer.frame.Y1 + lZ + diffZ) * stride + (chunkGlobalX - renderer.frame.X1 + lX + diffX);
+                            int riverDepth = renderer.input[index] - 1;
+                            (_, _, float riverHeight) = renderer.output[index];
+                            int waterheight = Math.Sqrt(diffX * diffX + diffZ * diffZ) <= riverDepth ? (int) Math.Floor(riverHeight + riverDepth) - height : 0;
+                            int terrainheight = GameMath.Clamp(height, 3, api.WorldManager.MapSizeY - 3);
+                            heightMap[lZ * GlobalConstants.ChunkSize + lX] = (ushort) ((waterheight << 9) | terrainheight);
                         }
                     }
                     mapRegion.SetModdata<ushort[]>(String.Format("heightMap:{0},{1}", rlX, rlZ), heightMap);
@@ -107,8 +130,8 @@ namespace Alterrain
             }
             Basin centralBasin = new Basin(rng, basinGrid, basinCoord);
             Dictionary<FastVec2i, int> climateAtBasinCoord = centralBasin.GenerateClimate(api);
-            int climateMapOrigX = renderer.frame.X1 + api.WorldManager.RegionSize - mapRegion.ClimateMap.TopLeftPadding * TerraGenConfig.climateMapScale;
-            int climateMapOrigZ = renderer.frame.Y1 + api.WorldManager.RegionSize - mapRegion.ClimateMap.TopLeftPadding * TerraGenConfig.climateMapScale;
+            int climateMapOrigX = regionX * api.WorldManager.RegionSize - mapRegion.ClimateMap.TopLeftPadding * TerraGenConfig.climateMapScale;
+            int climateMapOrigZ = regionZ * api.WorldManager.RegionSize - mapRegion.ClimateMap.TopLeftPadding * TerraGenConfig.climateMapScale;
             for (int pixelZ = 0; pixelZ < mapRegion.ClimateMap.Size; ++pixelZ)
             {
                 for (int pixelX = 0; pixelX < mapRegion.ClimateMap.Size; ++pixelX)
@@ -119,24 +142,26 @@ namespace Alterrain
                     mapRegion.ClimateMap.Data[pixelZ * mapRegion.ClimateMap.Size + pixelX] = climateAtBasinCoord[triangle.ClosestVertex()];
                 }
             }
-            int forestMapOrigX = api.WorldManager.RegionSize - mapRegion.ForestMap.TopLeftPadding * TerraGenConfig.forestMapScale;
-            int forestMapOrigZ = api.WorldManager.RegionSize - mapRegion.ForestMap.TopLeftPadding * TerraGenConfig.forestMapScale;
+            int forestMapOrigX = regionX * api.WorldManager.RegionSize - renderer.frame.X1 - mapRegion.ForestMap.TopLeftPadding * TerraGenConfig.forestMapScale;
+            int forestMapOrigZ = regionZ * api.WorldManager.RegionSize - renderer.frame.Y1 - mapRegion.ForestMap.TopLeftPadding * TerraGenConfig.forestMapScale;
             for (int pixelZ = 0; pixelZ < mapRegion.ForestMap.Size; ++pixelZ)
             {
                 for (int pixelX = 0; pixelX < mapRegion.ForestMap.Size; ++pixelX)
                 {
-                    (_, _, float distToRiver) = renderer.output[
-                        (forestMapOrigZ + pixelZ * TerraGenConfig.forestMapScale) * stride + (forestMapOrigX + pixelX * TerraGenConfig.forestMapScale)
-                    ];
-                    mapRegion.ForestMap.Data[pixelZ * mapRegion.ForestMap.Size + pixelX] = (int) (511.0 * Math.Max(0.0, 1.0 - Math.Abs(distToRiver - 40.0) / 30.0));
+                    int rendererX = forestMapOrigX + pixelX * TerraGenConfig.forestMapScale;
+                    int rendererZ = forestMapOrigZ + pixelZ * TerraGenConfig.forestMapScale;
+                    (int diffX, int diffZ, _) = renderer.output[rendererZ * stride + rendererX];
+                    int riverDepth = renderer.input[(rendererZ + diffZ) * stride + (rendererX + diffX)] - 1;
+                    float distToRiver = (float) Math.Sqrt(diffX * diffX + diffZ * diffZ);
+                    mapRegion.ForestMap.Data[pixelZ * mapRegion.ForestMap.Size + pixelX] = (riverDepth == 0) ? 0 : (int) (511.0 * Math.Max(0.0, 1.0 - Math.Abs(distToRiver - 40.0) / 30.0));
                 }
             }
             for (int i = 0; i < mapRegion.BeachMap.Data.Length; ++i)
             {
                 mapRegion.BeachMap.Data[i] = 0;
             }
-            int geoProvMapOrigX = renderer.frame.X1 + api.WorldManager.RegionSize - mapRegion.GeologicProvinceMap.TopLeftPadding * TerraGenConfig.geoProvMapScale;
-            int geoProvMapOrigZ = renderer.frame.Y1 + api.WorldManager.RegionSize - mapRegion.GeologicProvinceMap.TopLeftPadding * TerraGenConfig.geoProvMapScale;
+            int geoProvMapOrigX = regionX * api.WorldManager.RegionSize - mapRegion.GeologicProvinceMap.TopLeftPadding * TerraGenConfig.geoProvMapScale;
+            int geoProvMapOrigZ = regionZ * api.WorldManager.RegionSize - mapRegion.GeologicProvinceMap.TopLeftPadding * TerraGenConfig.geoProvMapScale;
             for (int pixelZ = 0; pixelZ < mapRegion.GeologicProvinceMap.Size; ++pixelZ)
             {
                 for (int pixelX = 0; pixelX < mapRegion.GeologicProvinceMap.Size; ++pixelX)
@@ -156,6 +181,12 @@ namespace Alterrain
         private void OnChunkColumnGen(IChunkColumnGenerateRequest request)
         {
             blockAccessor.BeginColumn();
+            Rectanglei chunkBounds = new Rectanglei(
+                request.ChunkX * GlobalConstants.ChunkSize,
+                request.ChunkZ * GlobalConstants.ChunkSize,
+                GlobalConstants.ChunkSize,
+                GlobalConstants.ChunkSize
+            );
             int regionChunkSize = api.WorldManager.RegionSize / GlobalConstants.ChunkSize;
             int rlX = request.ChunkX % regionChunkSize;
             int rlZ = request.ChunkZ % regionChunkSize;
@@ -172,7 +203,7 @@ namespace Alterrain
             {
                 for (int lX = 0; lX < GlobalConstants.ChunkSize; lX++)
                 {
-                    ushort height = heightMap[lZ * GlobalConstants.ChunkSize + lX];
+                    ushort height = (ushort) (heightMap[lZ * GlobalConstants.ChunkSize + lX] & 0x1FF);
                     YMin = Math.Min(YMin, height);
                     YMax = Math.Max(YMax, height);
                 }
@@ -195,19 +226,22 @@ namespace Alterrain
                 {
                     int offset = lZ * GlobalConstants.ChunkSize + lX;
                     int height = heightMap[offset];
-                    rainheightmap[offset] = (ushort) Math.Max(height, TerraGenConfig.seaLevel - 1);
-                    terrainheightmap[offset] = (ushort) height;
-                    ++height;
-                    for (int lY = YMin; lY < height; lY++)
+                    int terrainheight = height & 0x1FF;
+                    int rainheight = Math.Max(terrainheight + (height >> 9), TerraGenConfig.seaLevel - 1);
+                    terrainheightmap[offset] = (ushort) terrainheight;
+                    rainheightmap[offset] = (ushort) rainheight;
+                    for (int lY = YMin; lY <= terrainheight; lY++)
                     {
                         chunkBlockData = request.Chunks[lY / GlobalConstants.ChunkSize].Data;
                         chunkBlockData[(lY % GlobalConstants.ChunkSize) * stride + offset] = defaultRockId;
                     }
-                    for (int lY = height; lY < TerraGenConfig.seaLevel; lY++)
+                    for (int lY = terrainheight + 1; lY <= rainheight; lY++)
                     {
                         chunkBlockData = request.Chunks[lY / GlobalConstants.ChunkSize].Data;
                         chunkBlockData.SetFluid((lY % GlobalConstants.ChunkSize) * stride + offset, waterBlockId);
                     }
+                    if (rainheight >= TerraGenConfig.seaLevel)
+                        blockAccessor.ScheduleBlockUpdate(new BlockPos(chunkBounds.X1 + lX, rainheight, chunkBounds.Y1 + lZ));
                 }
             }
             mapChunk.YMax = YMax;
