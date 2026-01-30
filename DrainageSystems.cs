@@ -119,6 +119,7 @@ public class Basin
             nodeCoordPool.RemoveAt(nodeCoordPool.Count - 1);
             RiverNode node = nodes[nodeCoord];
             int offset = rng.NextInt(6);
+            int nodeCoordPoolCount = nodeCoordPool.Count;
             for (int j = 0; j < 6; ++j)
             {
                 FastVec2i upstreamNodeCoord = nodeCoord + riverGrid.neighborHexOffsets[(j + offset) % 6 + 1];
@@ -135,30 +136,51 @@ public class Basin
                     upstreamNode.downstreamCoord = nodeCoord;
                     nodes[upstreamNodeCoord] = upstreamNode;
                     nodeCoordPool.Add(upstreamNodeCoord);
-                    topologicallySorted.Add(upstreamNodeCoord);
                 }
             }
+            if (nodeCoordPool.Count > nodeCoordPoolCount)
+                topologicallySorted.Add(nodeCoord);
         }
         List<QuadraticBezierCurve> drainageSystem = new List<QuadraticBezierCurve>();
         for (int i = topologicallySorted.Count - 1; i >= 0; --i)
         {
             FastVec2i nodeCoord = topologicallySorted[i];
-            RiverNode upstreamNode = nodes[nodeCoord];
-            RiverNode node = nodes[upstreamNode.downstreamCoord];
+            RiverNode node = nodes[nodeCoord];
             RiverNode downstreamNode = nodes[node.downstreamCoord];
-            node.flow += upstreamNode.flow;
-            nodes[upstreamNode.downstreamCoord] = node;
             QuadraticBezierCurve segment = new QuadraticBezierCurve();
-            segment.a = new FastVec2i(upstreamNode.cartesian.X, upstreamNode.cartesian.Y);
-            segment.b = new FastVec2i(node.cartesian.X, node.cartesian.Y);
-            segment.c = new FastVec2i(downstreamNode.cartesian.X, downstreamNode.cartesian.Y);
-            if (upstreamNode.flow > 1.0F)
-                segment.a = (segment.a + segment.b) / 2;
-            segment.c = (segment.c + segment.b) / 2;
-            float x = 1.0F - Math.Min(1.0F, upstreamNode.flow / 50.0F);
-            segment.height = (int) (x * x * x * mountainStreamStartHeight);
-            segment.UpdateBounds();
-            drainageSystem.Add(segment);
+            segment.b = node.cartesian;
+            FastVec2i endPoint = (downstreamNode.cartesian + node.cartesian) / 2;
+            FastVec2i normal = new FastVec2i(downstreamNode.cartesian.Y - node.cartesian.Y, node.cartesian.X - downstreamNode.cartesian.X);
+            int offset = 0;
+            for (int j = 0; j < 6; ++j)
+            {
+                FastVec2i upstreamNodeCoord = nodeCoord + riverGrid.neighborHexOffsets[j + 1];
+                if (upstreamNodeCoord == node.downstreamCoord)
+                    offset = j;
+                RiverNode upstreamNode = nodes[upstreamNodeCoord];
+                if (upstreamNode.downstreamCoord == nodeCoord)
+                    node.flow += upstreamNode.flow;
+            }
+            nodes[nodeCoord] = node;
+            double riverWidth = Math.Ceiling(node.flow / 50.0F);
+            double normalFactor = riverWidth / (node.flow * Math.Sqrt(normal.X * normal.X + normal.Y * normal.Y));
+            double riverOffset = -node.flow;
+            for (int j = 0; j < 6; ++j)
+            {
+                FastVec2i upstreamNodeCoord = nodeCoord + riverGrid.neighborHexOffsets[(j + offset) % 6 + 1];
+                RiverNode upstreamNode = nodes[upstreamNodeCoord];
+                if (upstreamNode.downstreamCoord != nodeCoord)
+                    continue;
+                segment.a = upstreamNode.cartesian;
+                if (upstreamNode.flow > 1.0F)
+                    segment.a = (segment.a + segment.b) / 2;
+                segment.c = endPoint + (riverOffset + upstreamNode.flow) * normalFactor * normal;
+                float x = 1.0F - Math.Min(1.0F, upstreamNode.flow / 50.0F);
+                segment.height = (int) (x * x * x * mountainStreamStartHeight);
+                segment.UpdateBounds();
+                drainageSystem.Add(segment);
+                riverOffset += 2.0 * upstreamNode.flow;
+            }
         }
         return drainageSystem;
     }
