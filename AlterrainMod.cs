@@ -17,7 +17,6 @@ namespace Alterrain
         int mantleBlockId;
         int defaultRockId;
         int waterBlockId;
-        SlopeProfile slopeProfile;
         IDictionary<FastVec2i, List<QuadraticBezierCurve>> drainageSystems;
         LCGRandom rng;
         HexGrid riverGrid;
@@ -284,8 +283,6 @@ namespace Alterrain
             mantleBlockId = api.World.GetBlock("mantle")?.BlockId ?? 0;
             defaultRockId = api.World.GetBlock("rock-granite")?.BlockId ?? 0;
             waterBlockId = api.World.GetBlock("water-still-7")?.BlockId ?? 0;
-            IAsset asset = api.Assets.Get("survival:worldgen/slopeprofile.json");
-            slopeProfile = new SlopeProfile(asset.ToObject<List<SlopeInterval>>());
         }
 
         public override void StartServerSide(ICoreServerAPI coreApi)
