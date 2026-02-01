@@ -140,16 +140,17 @@ namespace Alterrain
                     mapRegion.SetModdata<ushort[]>(String.Format("heightMap:{0},{1}", rlX, rlZ), heightMap);
                 }
             }
-            for (int i = 0; i < mapRegion.UpheavelMap.Data.Length; ++i)
-            {
-                mapRegion.UpheavelMap.Data[i] = 0;
-            }
-            for (int i = 0; i < mapRegion.OceanMap.Data.Length; ++i)
-            {
-                mapRegion.OceanMap.Data[i] = 0;
-            }
+            mapRegion.UpheavelMap.TopLeftPadding = mapRegion.UpheavelMap.BottomRightPadding = 3; // TerraGenConfig.upheavelMapPadding;
+            mapRegion.UpheavelMap.Size = api.WorldManager.RegionSize / TerraGenConfig.climateMapScale + mapRegion.UpheavelMap.TopLeftPadding + mapRegion.UpheavelMap.BottomRightPadding;
+            mapRegion.UpheavelMap.Data = new int[mapRegion.UpheavelMap.Size * mapRegion.UpheavelMap.Size];
+            mapRegion.OceanMap.TopLeftPadding = mapRegion.OceanMap.BottomRightPadding = 5; // TerraGenConfig.oceanMapPadding;
+            mapRegion.OceanMap.Size = api.WorldManager.RegionSize / TerraGenConfig.oceanMapScale + mapRegion.OceanMap.TopLeftPadding + mapRegion.OceanMap.BottomRightPadding;
+            mapRegion.OceanMap.Data = new int[mapRegion.OceanMap.Size * mapRegion.OceanMap.Size];
             Basin centralBasin = new Basin(rng, basinGrid, basinCoord);
             Dictionary<FastVec2i, int> climateAtBasinCoord = centralBasin.GenerateClimate(api);
+            mapRegion.ClimateMap.TopLeftPadding = mapRegion.ClimateMap.BottomRightPadding = 2; // TerraGenConfig.climateMapPadding;
+            mapRegion.ClimateMap.Size = api.WorldManager.RegionSize / TerraGenConfig.climateMapScale + mapRegion.ClimateMap.TopLeftPadding + mapRegion.ClimateMap.BottomRightPadding;
+            mapRegion.ClimateMap.Data = new int[mapRegion.ClimateMap.Size * mapRegion.ClimateMap.Size];
             int climateMapOrigX = regionX * api.WorldManager.RegionSize - mapRegion.ClimateMap.TopLeftPadding * TerraGenConfig.climateMapScale;
             int climateMapOrigZ = regionZ * api.WorldManager.RegionSize - mapRegion.ClimateMap.TopLeftPadding * TerraGenConfig.climateMapScale;
             for (int pixelZ = 0; pixelZ < mapRegion.ClimateMap.Size; ++pixelZ)
@@ -162,6 +163,18 @@ namespace Alterrain
                     mapRegion.ClimateMap.Data[pixelZ * mapRegion.ClimateMap.Size + pixelX] = climateAtBasinCoord[triangle.ClosestVertex()];
                 }
             }
+            mapRegion.FlowerMap.TopLeftPadding = 0; // TerraGenConfig.flowerMapPadding
+            mapRegion.FlowerMap.BottomRightPadding = 1;
+            mapRegion.FlowerMap.Size = api.WorldManager.RegionSize / TerraGenConfig.forestMapScale + mapRegion.FlowerMap.TopLeftPadding + mapRegion.FlowerMap.BottomRightPadding;
+            mapRegion.FlowerMap.Data = new int[mapRegion.FlowerMap.Size * mapRegion.FlowerMap.Size];
+            mapRegion.ShrubMap.TopLeftPadding = 0; // TerraGenConfig.shrubMapPadding
+            mapRegion.ShrubMap.BottomRightPadding = 1;
+            mapRegion.ShrubMap.Size = api.WorldManager.RegionSize / TerraGenConfig.shrubMapScale + mapRegion.ShrubMap.TopLeftPadding + mapRegion.ShrubMap.BottomRightPadding;
+            mapRegion.ShrubMap.Data = new int[mapRegion.ShrubMap.Size * mapRegion.ShrubMap.Size];
+            mapRegion.ForestMap.TopLeftPadding = 0; // TerraGenConfig.forestMapPadding
+            mapRegion.ForestMap.BottomRightPadding = 1;
+            mapRegion.ForestMap.Size = api.WorldManager.RegionSize / TerraGenConfig.forestMapScale + mapRegion.ForestMap.TopLeftPadding + mapRegion.ForestMap.BottomRightPadding;
+            mapRegion.ForestMap.Data = new int[mapRegion.ForestMap.Size * mapRegion.ForestMap.Size];
             int forestMapOrigX = regionX * api.WorldManager.RegionSize - renderer.frame.X1 - mapRegion.ForestMap.TopLeftPadding * TerraGenConfig.forestMapScale;
             int forestMapOrigZ = regionZ * api.WorldManager.RegionSize - renderer.frame.Y1 - mapRegion.ForestMap.TopLeftPadding * TerraGenConfig.forestMapScale;
             for (int pixelZ = 0; pixelZ < mapRegion.ForestMap.Size; ++pixelZ)
@@ -176,10 +189,13 @@ namespace Alterrain
                     mapRegion.ForestMap.Data[pixelZ * mapRegion.ForestMap.Size + pixelX] = (riverDepth == 0) ? 0 : (int) (511.0 * Math.Max(0.0, 1.0 - Math.Abs(distToRiver - 40.0) / 30.0));
                 }
             }
-            for (int i = 0; i < mapRegion.BeachMap.Data.Length; ++i)
-            {
-                mapRegion.BeachMap.Data[i] = 0;
-            }
+            mapRegion.BeachMap.TopLeftPadding = 0; // TerraGenConfig.beachMapPadding;
+            mapRegion.BeachMap.BottomRightPadding = 1;
+            mapRegion.BeachMap.Size = api.WorldManager.RegionSize / TerraGenConfig.beachMapScale + mapRegion.BeachMap.TopLeftPadding + mapRegion.BeachMap.BottomRightPadding;
+            mapRegion.BeachMap.Data = new int[mapRegion.BeachMap.Size * mapRegion.BeachMap.Size];
+            mapRegion.GeologicProvinceMap.TopLeftPadding = mapRegion.GeologicProvinceMap.BottomRightPadding = TerraGenConfig.geoProvMapPadding;
+            mapRegion.GeologicProvinceMap.Size = api.WorldManager.RegionSize / TerraGenConfig.geoProvMapScale + mapRegion.GeologicProvinceMap.TopLeftPadding + mapRegion.GeologicProvinceMap.BottomRightPadding;
+            mapRegion.GeologicProvinceMap.Data = new int[mapRegion.GeologicProvinceMap.Size * mapRegion.GeologicProvinceMap.Size];
             int geoProvMapOrigX = regionX * api.WorldManager.RegionSize - mapRegion.GeologicProvinceMap.TopLeftPadding * TerraGenConfig.geoProvMapScale;
             int geoProvMapOrigZ = regionZ * api.WorldManager.RegionSize - mapRegion.GeologicProvinceMap.TopLeftPadding * TerraGenConfig.geoProvMapScale;
             for (int pixelZ = 0; pixelZ < mapRegion.GeologicProvinceMap.Size; ++pixelZ)
@@ -192,10 +208,9 @@ namespace Alterrain
                     mapRegion.GeologicProvinceMap.Data[pixelZ * mapRegion.GeologicProvinceMap.Size + pixelX] = (triangle.max > 0.8) ? 3 : (triangle.max > 0.6) ? 2 : 0;
                 }
             }
-            for (int i = 0; i < mapRegion.LandformMap.Data.Length; ++i)
-            {
-                mapRegion.LandformMap.Data[i] = 0;
-            }
+            mapRegion.LandformMap.TopLeftPadding = mapRegion.LandformMap.BottomRightPadding = TerraGenConfig.landformMapPadding;
+            mapRegion.LandformMap.Size = api.WorldManager.RegionSize / TerraGenConfig.landformMapScale + mapRegion.LandformMap.TopLeftPadding + mapRegion.LandformMap.BottomRightPadding;
+            mapRegion.LandformMap.Data = new int[mapRegion.LandformMap.Size * mapRegion.LandformMap.Size];
         }
 
         private void OnChunkColumnGen(IChunkColumnGenerateRequest request)
