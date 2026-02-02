@@ -43,6 +43,29 @@ namespace Alterrain
             renderer.slopeRange = 1.0F;
         }
 
+        private void GenerateFloraMap(HeightMapRenderer renderer, int regionX, int regionZ, IntDataMap2D map, int mapScale, double bandDistance)
+        {
+            map.TopLeftPadding = 0;
+            map.BottomRightPadding = 1;
+            map.Size = api.WorldManager.RegionSize / mapScale + map.TopLeftPadding + map.BottomRightPadding;
+            map.Data = new int[map.Size * map.Size];
+            int flowerMapOrigX = regionX * api.WorldManager.RegionSize - renderer.frame.X1 - map.TopLeftPadding * mapScale;
+            int flowerMapOrigZ = regionZ * api.WorldManager.RegionSize - renderer.frame.Y1 - map.TopLeftPadding * mapScale;
+            int stride = GlobalConstants.ChunkSize * GlobalConstants.ChunkSize;
+            for (int pixelZ = 0; pixelZ < map.Size; ++pixelZ)
+            {
+                for (int pixelX = 0; pixelX < map.Size; ++pixelX)
+                {
+                    int rendererX = flowerMapOrigX + pixelX * mapScale;
+                    int rendererZ = flowerMapOrigZ + pixelZ * mapScale;
+                    (int diffX, int diffZ, _) = renderer.output[rendererZ * stride + rendererX];
+                    int riverDepth = renderer.input[(rendererZ + diffZ) * stride + (rendererX + diffX)] - 1;
+                    float distToRiver = (float) Math.Sqrt(diffX * diffX + diffZ * diffZ);
+                    map.Data[pixelZ * map.Size + pixelX] = (riverDepth == 0) ? 0 : (int) (511.0 * Math.Max(0.0, 1.0 - Math.Abs(distToRiver - bandDistance) / 30.0));
+                }
+            }
+        }
+
         private void OnMapRegionGen(IMapRegion mapRegion, int regionX, int regionZ, ITreeAttribute chunkGenParams = null)
         {
             const float chunkBlockDelta = 1.0f / GlobalConstants.ChunkSize;
@@ -163,32 +186,9 @@ namespace Alterrain
                     mapRegion.ClimateMap.Data[pixelZ * mapRegion.ClimateMap.Size + pixelX] = climateAtBasinCoord[triangle.ClosestVertex()];
                 }
             }
-            mapRegion.FlowerMap.TopLeftPadding = 0; // TerraGenConfig.flowerMapPadding
-            mapRegion.FlowerMap.BottomRightPadding = 1;
-            mapRegion.FlowerMap.Size = api.WorldManager.RegionSize / TerraGenConfig.forestMapScale + mapRegion.FlowerMap.TopLeftPadding + mapRegion.FlowerMap.BottomRightPadding;
-            mapRegion.FlowerMap.Data = new int[mapRegion.FlowerMap.Size * mapRegion.FlowerMap.Size];
-            mapRegion.ShrubMap.TopLeftPadding = 0; // TerraGenConfig.shrubMapPadding
-            mapRegion.ShrubMap.BottomRightPadding = 1;
-            mapRegion.ShrubMap.Size = api.WorldManager.RegionSize / TerraGenConfig.shrubMapScale + mapRegion.ShrubMap.TopLeftPadding + mapRegion.ShrubMap.BottomRightPadding;
-            mapRegion.ShrubMap.Data = new int[mapRegion.ShrubMap.Size * mapRegion.ShrubMap.Size];
-            mapRegion.ForestMap.TopLeftPadding = 0; // TerraGenConfig.forestMapPadding
-            mapRegion.ForestMap.BottomRightPadding = 1;
-            mapRegion.ForestMap.Size = api.WorldManager.RegionSize / TerraGenConfig.forestMapScale + mapRegion.ForestMap.TopLeftPadding + mapRegion.ForestMap.BottomRightPadding;
-            mapRegion.ForestMap.Data = new int[mapRegion.ForestMap.Size * mapRegion.ForestMap.Size];
-            int forestMapOrigX = regionX * api.WorldManager.RegionSize - renderer.frame.X1 - mapRegion.ForestMap.TopLeftPadding * TerraGenConfig.forestMapScale;
-            int forestMapOrigZ = regionZ * api.WorldManager.RegionSize - renderer.frame.Y1 - mapRegion.ForestMap.TopLeftPadding * TerraGenConfig.forestMapScale;
-            for (int pixelZ = 0; pixelZ < mapRegion.ForestMap.Size; ++pixelZ)
-            {
-                for (int pixelX = 0; pixelX < mapRegion.ForestMap.Size; ++pixelX)
-                {
-                    int rendererX = forestMapOrigX + pixelX * TerraGenConfig.forestMapScale;
-                    int rendererZ = forestMapOrigZ + pixelZ * TerraGenConfig.forestMapScale;
-                    (int diffX, int diffZ, _) = renderer.output[rendererZ * stride + rendererX];
-                    int riverDepth = renderer.input[(rendererZ + diffZ) * stride + (rendererX + diffX)] - 1;
-                    float distToRiver = (float) Math.Sqrt(diffX * diffX + diffZ * diffZ);
-                    mapRegion.ForestMap.Data[pixelZ * mapRegion.ForestMap.Size + pixelX] = (riverDepth == 0) ? 0 : (int) (511.0 * Math.Max(0.0, 1.0 - Math.Abs(distToRiver - 40.0) / 30.0));
-                }
-            }
+            GenerateFloraMap(renderer, regionX, regionZ, mapRegion.FlowerMap, TerraGenConfig.forestMapScale, 30.0);
+            GenerateFloraMap(renderer, regionX, regionZ, mapRegion.ShrubMap, TerraGenConfig.shrubMapScale, 50.0);
+            GenerateFloraMap(renderer, regionX, regionZ, mapRegion.ForestMap, TerraGenConfig.forestMapScale, 40.0);
             mapRegion.BeachMap.TopLeftPadding = 0; // TerraGenConfig.beachMapPadding;
             mapRegion.BeachMap.BottomRightPadding = 1;
             mapRegion.BeachMap.Size = api.WorldManager.RegionSize / TerraGenConfig.beachMapScale + mapRegion.BeachMap.TopLeftPadding + mapRegion.BeachMap.BottomRightPadding;
