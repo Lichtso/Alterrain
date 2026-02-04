@@ -77,6 +77,14 @@ namespace Alterrain
                 {
                     int chunkGlobalX = renderer.frame.X1 + rlX * GlobalConstants.ChunkSize;
                     int chunkGlobalZ = renderer.frame.Y1 + rlZ * GlobalConstants.ChunkSize;
+                    rng.InitPositionSeed(chunkGlobalX, chunkGlobalZ);
+                    double elevationUpLeft = rng.NextInt(256) / 255.0;
+                    rng.InitPositionSeed(chunkGlobalX + GlobalConstants.ChunkSize, chunkGlobalZ);
+                    double elevationUpRight = rng.NextInt(256) / 255.0;
+                    rng.InitPositionSeed(chunkGlobalX, chunkGlobalZ + GlobalConstants.ChunkSize);
+                    double elevationBotLeft = rng.NextInt(256) / 255.0;
+                    rng.InitPositionSeed(chunkGlobalX + GlobalConstants.ChunkSize, chunkGlobalZ + GlobalConstants.ChunkSize);
+                    double elevationBotRight = rng.NextInt(256) / 255.0;
                     BarycentricTriangle triangleUpLeft = basinGrid.BarycentricTriangle(rng, new FastVec2i(chunkGlobalX, chunkGlobalZ));
                     BarycentricTriangle triangleUpRight = basinGrid.BarycentricTriangle(rng, new FastVec2i(chunkGlobalX + GlobalConstants.ChunkSize, chunkGlobalZ));
                     BarycentricTriangle triangleBotLeft = basinGrid.BarycentricTriangle(rng, new FastVec2i(chunkGlobalX, chunkGlobalZ + GlobalConstants.ChunkSize));
@@ -85,8 +93,11 @@ namespace Alterrain
                     {
                         for (int lX = 0; lX < GlobalConstants.ChunkSize; lX++)
                         {
+                            double elevation = GameMath.BiLerp(elevationUpLeft, elevationUpRight, elevationBotLeft, elevationBotRight, lX * chunkBlockDelta, lZ * chunkBlockDelta);
                             double proximity = GameMath.BiLerp(triangleUpLeft.max, triangleUpRight.max, triangleBotLeft.max, triangleBotRight.max, lX * chunkBlockDelta, lZ * chunkBlockDelta);
                             int index = (chunkGlobalZ - renderer.frame.Y1 + lZ) * stride + (chunkGlobalX - renderer.frame.X1 + lX);
+                            if (proximity - (float) elevation * 0.02F > 0.89F)
+                                renderer.input[index] = (byte) (elevation * 5 + 5);
                             int riverDepth = renderer.input[index];
                             double distance = 2.0 * (1.0 - proximity);
                             double heightFloat = (riverDepth == 0) ? api.WorldManager.MapSizeY : TerraGenConfig.seaLevel + 40.0 * distance * distance * distance - riverDepth + 10.0 * Math.Max(0, 3 - riverDepth);
