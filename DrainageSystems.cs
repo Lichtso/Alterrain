@@ -93,7 +93,7 @@ public class Basin
         return climateAtBasinCoord;
     }
 
-    public List<QuadraticBezierCurve> GenerateDrainageSystem(HexGrid riverGrid)
+    public List<QuadraticBezierCurve> GenerateDrainageSystem(HexGrid riverGrid, float lakeProximity)
     {
         FastVec2i basinCenter = basinGrid.HexToCartesianWithJitter(rng, coord);
         FastVec2i rootNodeCoord = riverGrid.CartesianToHex(new FastVec2i(basinCenter.X, basinCenter.Y));
@@ -138,7 +138,7 @@ public class Basin
                     nodeCoordPool.Add(upstreamNodeCoord);
                 }
             }
-            if (nodeCoordPool.Count > nodeCoordPoolCount)
+            if (nodeCoordPool.Count > nodeCoordPoolCount && node.proximity <= lakeProximity)
                 topologicallySorted.Add(nodeCoord);
         }
         List<QuadraticBezierCurve> drainageSystem = new List<QuadraticBezierCurve>();
@@ -179,6 +179,33 @@ public class Basin
                 segment.UpdateBounds();
                 drainageSystem.Add(segment);
                 riverOffset += 2.0 * upstreamNode.flow;
+            }
+            if (downstreamNode.proximity > lakeProximity)
+            {
+                normalFactor *= 0.7;
+                FastVec2i deltaTangent = (basinCenter - downstreamNode.cartesian) / 3;
+                int arms = Math.Min(3, (int) Math.Ceiling(riverDepth / 7.0));
+                riverDepth = Math.Ceiling(Math.Sqrt(node.flow / (float) arms));
+                segment.height = (int) riverDepth;
+                segment.b = downstreamNode.cartesian;
+                if (arms != 2)
+                {
+                    segment.a = endPoint;
+                    segment.c = downstreamNode.cartesian + deltaTangent;
+                    segment.UpdateBounds();
+                    drainageSystem.Add(segment);
+                }
+                if (arms > 1)
+                {
+                    segment.a = endPoint - node.flow * normalFactor * normal;
+                    segment.c = downstreamNode.cartesian + deltaTangent + new FastVec2i(-deltaTangent.Y, deltaTangent.X) * 0.5;
+                    segment.UpdateBounds();
+                    drainageSystem.Add(segment);
+                    segment.a = endPoint + node.flow * normalFactor * normal;
+                    segment.c = downstreamNode.cartesian + deltaTangent + new FastVec2i(deltaTangent.Y, -deltaTangent.X) * 0.5;
+                    segment.UpdateBounds();
+                    drainageSystem.Add(segment);
+                }
             }
         }
         return drainageSystem;

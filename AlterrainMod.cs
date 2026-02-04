@@ -62,7 +62,7 @@ namespace Alterrain
                 if (!drainageSystems.TryGetValue(basinCoord, out drainageSystem))
                 {
                     Basin basin = new Basin(rng, basinGrid, basinCoord);
-                    drainageSystem = basin.GenerateDrainageSystem(riverGrid);
+                    drainageSystem = basin.GenerateDrainageSystem(riverGrid, 0.88F);
                     drainageSystems.Add(basinCoord, drainageSystem);
                 }
                 foreach (QuadraticBezierCurve segment in drainageSystem)
