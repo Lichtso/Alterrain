@@ -17,6 +17,7 @@ namespace Alterrain
         int mantleBlockId;
         int defaultRockId;
         int waterBlockId;
+        int rapidWaterBlockId;
         IDictionary<FastVec2i, List<QuadraticBezierCurve>> drainageSystems;
         LCGRandom rng;
         HexGrid riverGrid;
@@ -276,6 +277,11 @@ namespace Alterrain
                         chunkBlockData = request.Chunks[lY / GlobalConstants.ChunkSize].Data;
                         chunkBlockData.SetFluid((lY % GlobalConstants.ChunkSize) * stride + offset, waterBlockId);
                     }
+                    if (rainheight >= TerraGenConfig.seaLevel + 60)
+                    {
+                        chunkBlockData = request.Chunks[rainheight / GlobalConstants.ChunkSize].Data;
+                        chunkBlockData.SetFluid((rainheight % GlobalConstants.ChunkSize) * stride + offset, rapidWaterBlockId);
+                    }
                     if (rainheight >= TerraGenConfig.seaLevel)
                         blockAccessor.ScheduleBlockUpdate(new BlockPos(chunkBounds.X1 + lX, rainheight, chunkBounds.Y1 + lZ));
                 }
@@ -299,6 +305,7 @@ namespace Alterrain
             mantleBlockId = api.World.GetBlock("mantle")?.BlockId ?? 0;
             defaultRockId = api.World.GetBlock("rock-granite")?.BlockId ?? 0;
             waterBlockId = api.World.GetBlock("water-still-7")?.BlockId ?? 0;
+            rapidWaterBlockId = api.World.GetBlock("rapidwater-still-7")?.BlockId ?? 0;
         }
 
         public override void StartServerSide(ICoreServerAPI coreApi)
