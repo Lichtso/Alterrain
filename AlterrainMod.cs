@@ -33,12 +33,13 @@ namespace Alterrain
             drainageSystems = new Dictionary<FastVec2i, List<QuadraticBezierCurve>>();
             rng = new LCGRandom(api.WorldManager.Seed);
             ITreeAttribute worldConfig = api.WorldManager.SaveGame.WorldConfiguration;
+            float upheavelCommonness = worldConfig.GetString("upheavelCommonness", "1").ToFloat(1);
             float landformScale = worldConfig.GetString("landformScale", "1").ToFloat(1);
-            riverGrid = new HexGrid((int) (landformScale * 64.0F));
+            riverGrid = new HexGrid(64);
             basinGrid = new HexGrid((int) (landformScale * 3500.0F));
             renderer = new HeightMapRenderer(api.WorldManager.RegionSize * 2 * api.WorldManager.RegionSize * 2);
             renderer.depthSlopeStart = 2.0F;
-            renderer.heightSlopeScale = 0.01F;
+            renderer.heightSlopeScale = upheavelCommonness * 0.03F;
             renderer.slopeBase = 0.3F;
             renderer.slopeRange = 1.0F;
         }

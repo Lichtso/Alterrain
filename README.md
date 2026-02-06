@@ -22,7 +22,6 @@ It does however work well with extra high worlds which the vanilla generator dis
 - The world generation configuration parameters are ignored:
     - landcover
     - oceanscale
-    - upheavelCommonness
 - There are no landforms yet:
     - Vulcanos
     - Dunes
