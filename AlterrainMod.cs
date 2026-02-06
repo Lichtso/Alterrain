@@ -22,6 +22,7 @@ namespace Alterrain
         LCGRandom rng;
         HexGrid riverGrid;
         HexGrid basinGrid;
+        HeightMapRenderer renderer;
 
         private void OnWorldGenBlockAccessor(IChunkProviderThread chunkProvider)
         {
@@ -36,18 +37,23 @@ namespace Alterrain
             float landformScale = worldConfig.GetString("landformScale", "1").ToFloat(1);
             riverGrid = new HexGrid((int) (landformScale * 64.0F));
             basinGrid = new HexGrid((int) (landformScale * 3500.0F));
+            renderer = new HeightMapRenderer(api.WorldManager.RegionSize * 2 * api.WorldManager.RegionSize * 2);
+            renderer.depthSlopeStart = 2.0F;
+            renderer.heightSlopeScale = 0.01F;
+            renderer.slopeBase = 0.3F;
+            renderer.slopeRange = 1.0F;
         }
 
         private void OnMapRegionGen(IMapRegion mapRegion, int regionX, int regionZ, ITreeAttribute chunkGenParams = null)
         {
             const float chunkBlockDelta = 1.0f / GlobalConstants.ChunkSize;
             int regionChunkSize = api.WorldManager.RegionSize / GlobalConstants.ChunkSize;
-            HeightMapRenderer renderer = new HeightMapRenderer(new Rectanglei(
+            renderer.frame = new Rectanglei(
                 regionX * api.WorldManager.RegionSize - api.WorldManager.RegionSize / 2,
                 regionZ * api.WorldManager.RegionSize - api.WorldManager.RegionSize / 2,
                 api.WorldManager.RegionSize * 2,
                 api.WorldManager.RegionSize * 2
-            ));
+            );
             int stride = renderer.frame.X2 - renderer.frame.X1;
             FastVec2i regionCenter = new FastVec2i(
                 (renderer.frame.X2 + renderer.frame.X1) / 2,
@@ -55,6 +61,7 @@ namespace Alterrain
             );
             for (int i = 0; i < renderer.output.Length; ++i)
             {
+                renderer.input[i] = 0;
                 renderer.output[i] = (0, 0, api.WorldManager.MapSizeY);
             }
             FastVec2i basinCoord = basinGrid.CartesianToHex(regionCenter);

@@ -101,15 +101,15 @@ public struct QuadraticBezierCurve
 
 public class HeightMapRenderer
 {
+    public float depthSlopeStart, heightSlopeScale, slopeBase, slopeRange;
     public Rectanglei frame;
     public byte[] input;
     public (int, int, float)[] output;
 
-    public HeightMapRenderer(Rectanglei rect)
+    public HeightMapRenderer(int size)
     {
-        frame = rect;
-        input = new byte[(frame.X2 - frame.X1) * (frame.Y2 - frame.Y1)];
-        output = new (int, int, float)[(frame.X2 - frame.X1) * (frame.Y2 - frame.Y1)];
+        input = new byte[size];
+        output = new (int, int, float)[size];
     }
 
     public void PlotPoint(int x, int y, int z)
@@ -132,8 +132,8 @@ public class HeightMapRenderer
         diffX = nx - x;
         diffY = ny - y;
         float distance = (float) Math.Sqrt(diffX * diffX + diffY * diffY) - riverDepth;
-        float q = riverDepth * 2.0F;
-        float s = (float) GameMath.Clamp(height - TerraGenConfig.seaLevel + riverDepth, 1, 100) * 0.01F + 0.3F;
+        float q = riverDepth * depthSlopeStart;
+        float s = (float) GameMath.Clamp((height + riverDepth - TerraGenConfig.seaLevel) * heightSlopeScale, 0.0F, slopeRange) + slopeBase;
         float newValue = height + riverDepth + (distance < 0.0F ? distance : s * (distance < q ? distance * distance / (2.0F * q) : distance - 0.5F * q));
         if (currentValue > newValue)
             output[destinationIndex] = (diffX, diffY, newValue);
