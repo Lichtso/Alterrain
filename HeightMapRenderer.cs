@@ -10,7 +10,7 @@ public struct QuadraticBezierCurve
     public FastVec2i a;
     public FastVec2i b;
     public FastVec2i c;
-    public int height;
+    public int y;
     public Rectanglei bounds;
 
     public void UpdateBounds()
@@ -80,7 +80,7 @@ public struct QuadraticBezierCurve
             t = (x0*x2-x1*x1)*t/(x0-x1);
             x = (int) (t+0.5); z = (int) (r+0.5);
             r = (z1-z0)*(t-x0)/(x1-x0)+z0;
-            PlotSegment(x0, z0, x, (int) (r+0.5), x, z, height, PlotPoint);
+            PlotSegment(x0, z0, x, (int) (r+0.5), x, z, y, PlotPoint);
             r = (z1-z2)*(t-x2)/(x1-x2)+z2;
             x0 = x1 = x; z0 = z; z1 = (int) (r+0.5);
         }
@@ -91,11 +91,11 @@ public struct QuadraticBezierCurve
             t = (z0*z2-z1*z1)*t/(z0-z1);
             x = (int) (r+0.5); z = (int) (t+0.5);
             r = (x1-x0)*(t-z0)/(z1-z0)+x0;
-            PlotSegment(x0, z0, (int) (r+0.5), z, x, z, height, PlotPoint);
+            PlotSegment(x0, z0, (int) (r+0.5), z, x, z, y, PlotPoint);
             r = (x1-x2)*(t-z2)/(z1-z2)+x2;
             x0 = x; x1 = (int) (r+0.5); z0 = z1 = z;
         }
-        PlotSegment(x0, z0, x1, z1, x2, z2, height, PlotPoint);
+        PlotSegment(x0, z0, x1, z1, x2, z2, y, PlotPoint);
     }
 }
 
@@ -115,7 +115,8 @@ public class HeightMapRenderer
     public void PlotPoint(int x, int y, int z)
     {
         int index = z * (frame.X2 - frame.X1) + x;
-        input[index] = Math.Max(input[index], (byte) y);
+        input[index] = Math.Max(input[index], (byte) (y >> 16));
+        output[index] = (0, 0, (float) (y & 0xFFFF));
     }
 
     private void DistanceTransformPixel(int stride, int x, int y, int nx, int ny)
@@ -131,7 +132,7 @@ public class HeightMapRenderer
         diffX = nx - x;
         diffY = ny - y;
         float distance = (float) Math.Sqrt(diffX * diffX + diffY * diffY) - riverDepth;
-        float q = riverDepth * 3.0F;
+        float q = riverDepth * 2.0F;
         float s = (float) GameMath.Clamp(height - TerraGenConfig.seaLevel + riverDepth, 1, 100) * 0.01F + 0.3F;
         float newValue = height + riverDepth + (distance < 0.0F ? distance : s * (distance < q ? distance * distance / (2.0F * q) : distance - 0.5F * q));
         if (currentValue > newValue)

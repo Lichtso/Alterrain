@@ -4,6 +4,7 @@ using Vintagestory.API.Datastructures;
 using Vintagestory.API.MathTools;
 using Vintagestory.API.Server;
 using Vintagestory.API.Util;
+using Vintagestory.ServerMods;
 
 namespace Alterrain;
 
@@ -12,6 +13,7 @@ public struct RiverNode
     public FastVec2i cartesian;
     public float proximity;
     public float flow;
+    public float height;
     public FastVec2i downstreamCoord;
 
     public RiverNode(HexGrid riverGrid, LCGRandom rng, Basin basin, FastVec2i nodeCoord)
@@ -141,12 +143,22 @@ public class Basin
             if (nodeCoordPool.Count > nodeCoordPoolCount && node.proximity <= lakeProximity)
                 topologicallySorted.Add(nodeCoord);
         }
-        List<QuadraticBezierCurve> drainageSystem = new List<QuadraticBezierCurve>();
         for (int i = topologicallySorted.Count - 1; i >= 0; --i)
         {
             FastVec2i nodeCoord = topologicallySorted[i];
             RiverNode node = nodes[nodeCoord];
             RiverNode downstreamNode = nodes[node.downstreamCoord];
+            downstreamNode.flow += node.flow;
+            nodes[node.downstreamCoord] = downstreamNode;
+        }
+        List<QuadraticBezierCurve> drainageSystem = new List<QuadraticBezierCurve>();
+        for (int i = 0; i < topologicallySorted.Count; ++i)
+        {
+            FastVec2i nodeCoord = topologicallySorted[i];
+            RiverNode node = nodes[nodeCoord];
+            RiverNode downstreamNode = nodes[node.downstreamCoord];
+            if (downstreamNode.proximity > lakeProximity)
+                node.height = (float) TerraGenConfig.seaLevel;
             QuadraticBezierCurve segment = new QuadraticBezierCurve();
             segment.b = node.cartesian;
             FastVec2i endPoint = (downstreamNode.cartesian + node.cartesian) / 2;
@@ -159,9 +171,11 @@ public class Basin
                     offset = j;
                 RiverNode upstreamNode = nodes[upstreamNodeCoord];
                 if (upstreamNode.downstreamCoord == nodeCoord)
-                    node.flow += upstreamNode.flow;
+                {
+                    upstreamNode.height = node.height + 1.0F + 5.0F * Math.Max(0.0F, 5.0F - upstreamNode.flow);
+                    nodes[upstreamNodeCoord] = upstreamNode;
+                }
             }
-            nodes[nodeCoord] = node;
             double riverDepth = Math.Ceiling(Math.Sqrt(node.flow));
             double normalFactor = riverDepth / (1.4 * node.flow * Math.Sqrt(normal.X * normal.X + normal.Y * normal.Y));
             double riverOffset = -node.flow;
@@ -175,7 +189,8 @@ public class Basin
                 if (upstreamNode.flow > 1.0F)
                     segment.a = (segment.a + segment.b) / 2;
                 segment.c = endPoint + (riverOffset + upstreamNode.flow) * normalFactor * normal;
-                segment.height = (int) Math.Ceiling(Math.Sqrt(upstreamNode.flow));
+                int depth = (int) Math.Ceiling(Math.Sqrt(upstreamNode.flow));
+                segment.y = depth << 16 | ((int) upstreamNode.height - depth);
                 segment.UpdateBounds();
                 drainageSystem.Add(segment);
                 riverOffset += 2.0 * upstreamNode.flow;
@@ -186,7 +201,7 @@ public class Basin
                 FastVec2i deltaTangent = (basinCenter - downstreamNode.cartesian) / 3;
                 int arms = Math.Min(3, (int) Math.Ceiling(riverDepth / 7.0));
                 riverDepth = Math.Ceiling(Math.Sqrt(node.flow / (float) arms));
-                segment.height = (int) riverDepth;
+                segment.y = ((int) riverDepth) << 16 | (TerraGenConfig.seaLevel + 1 - (int) riverDepth);
                 segment.b = downstreamNode.cartesian;
                 if (arms != 2)
                 {

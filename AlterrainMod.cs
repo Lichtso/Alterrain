@@ -53,6 +53,10 @@ namespace Alterrain
                 (renderer.frame.X2 + renderer.frame.X1) / 2,
                 (renderer.frame.Y2 + renderer.frame.Y1) / 2
             );
+            for (int i = 0; i < renderer.output.Length; ++i)
+            {
+                renderer.output[i] = (0, 0, api.WorldManager.MapSizeY);
+            }
             FastVec2i basinCoord = basinGrid.CartesianToHex(regionCenter);
             BarycentricTriangle triangle = basinGrid.BarycentricTriangle(rng, regionCenter);
             for (int i = 0; i < 7; ++i)
@@ -95,13 +99,12 @@ namespace Alterrain
                         {
                             double elevation = GameMath.BiLerp(elevationUpLeft, elevationUpRight, elevationBotLeft, elevationBotRight, lX * chunkBlockDelta, lZ * chunkBlockDelta);
                             double proximity = GameMath.BiLerp(triangleUpLeft.max, triangleUpRight.max, triangleBotLeft.max, triangleBotRight.max, lX * chunkBlockDelta, lZ * chunkBlockDelta);
-                            int index = (chunkGlobalZ - renderer.frame.Y1 + lZ) * stride + (chunkGlobalX - renderer.frame.X1 + lX);
                             if (proximity - (float) elevation * 0.02F > 0.89F)
+                            {
+                                int index = (chunkGlobalZ - renderer.frame.Y1 + lZ) * stride + (chunkGlobalX - renderer.frame.X1 + lX);
                                 renderer.input[index] = (byte) (elevation * 5 + 5);
-                            int riverDepth = renderer.input[index];
-                            double distance = 2.0 * (1.0 - proximity);
-                            double heightFloat = (riverDepth == 0) ? api.WorldManager.MapSizeY : TerraGenConfig.seaLevel + 40.0 * distance * distance * distance - riverDepth + 10.0 * Math.Max(0, 3 - riverDepth);
-                            renderer.output[index] = (0, 0, (float) heightFloat);
+                                renderer.output[index] = (0, 0, (float) TerraGenConfig.seaLevel - renderer.input[index]);
+                            }
                         }
                     }
                 }
