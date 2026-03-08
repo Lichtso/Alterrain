@@ -31,6 +31,22 @@ namespace Alterrain
 
         private void OnInitWorldGen()
         {
+            IWorldGenHandler handles = api.Event.GetRegisteredWorldGenHandlers("standard");
+            var GenMaps = handles.OnMapRegionGen.FindIndex(a => a.Method.DeclaringType == typeof(GenMaps));
+            handles.OnMapRegionGen.RemoveAt(GenMaps);
+            var GenTerra = handles.OnChunkColumnGen[(int)EnumWorldGenPass.Terrain].FindIndex(a => a.Method.DeclaringType == typeof(GenTerra));
+            handles.OnChunkColumnGen[(int)EnumWorldGenPass.Terrain].RemoveAt(GenTerra);
+            var GenTerraPostProcess = handles.OnChunkColumnGen[(int)EnumWorldGenPass.TerrainFeatures].FindIndex(a => a.Method.DeclaringType == typeof(GenTerraPostProcess));
+            handles.OnChunkColumnGen[(int)EnumWorldGenPass.TerrainFeatures].RemoveAt(GenTerraPostProcess);
+            var GenPonds = handles.OnChunkColumnGen[(int)EnumWorldGenPass.TerrainFeatures].FindIndex(a => a.Method.DeclaringType == typeof(GenPonds));
+            handles.OnChunkColumnGen[(int)EnumWorldGenPass.TerrainFeatures].RemoveAt(GenPonds);
+            var GenDungeons = handles.OnChunkColumnGen[(int)EnumWorldGenPass.TerrainFeatures].FindIndex(a => a.Method.DeclaringType == typeof(GenDungeons));
+            handles.OnChunkColumnGen[(int)EnumWorldGenPass.TerrainFeatures].RemoveAt(GenDungeons);
+            var GenRivulets = handles.OnChunkColumnGen[(int)EnumWorldGenPass.Vegetation].FindIndex(a => a.Method.DeclaringType == typeof(GenRivulets));
+            handles.OnChunkColumnGen[(int)EnumWorldGenPass.Vegetation].RemoveAt(GenRivulets);
+            handles.OnMapRegionGen.RemoveAt(handles.OnMapRegionGen.FindIndex(a => a.Method.DeclaringType == typeof(GenDungeons)));
+            handles.OnMapRegionGen.Add(OnMapRegionGen);
+            handles.OnChunkColumnGen[(int)EnumWorldGenPass.Terrain].Insert(0, OnChunkColumnGen);
             drainageSystems = new Dictionary<FastVec2i, List<QuadraticBezierCurve>>();
             rng = new LCGRandom(api.WorldManager.Seed);
             ITreeAttribute worldConfig = api.WorldManager.SaveGame.WorldConfiguration;
@@ -188,7 +204,7 @@ namespace Alterrain
                     mapRegion.ClimateMap.Data[pixelZ * mapRegion.ClimateMap.Size + pixelX] = climateAtBasinCoord[triangle.ClosestVertex()];
                 }
             }
-            GenerateFloraMap(renderer, regionX, regionZ, mapRegion.FlowerMap, TerraGenConfig.forestMapScale, 30.0);
+            GenerateFloraMap(renderer, regionX, regionZ, mapRegion.BiomeMap, TerraGenConfig.forestMapScale, 30.0);
             GenerateFloraMap(renderer, regionX, regionZ, mapRegion.ShrubMap, TerraGenConfig.shrubMapScale, 50.0);
             GenerateFloraMap(renderer, regionX, regionZ, mapRegion.ForestMap, TerraGenConfig.forestMapScale, 40.0);
             mapRegion.BeachMap.TopLeftPadding = 0; // TerraGenConfig.beachMapPadding;
@@ -311,21 +327,8 @@ namespace Alterrain
         public override void StartServerSide(ICoreServerAPI coreApi)
         {
             api = coreApi;
-            IWorldGenHandler handles = api.Event.GetRegisteredWorldGenHandlers("standard");
-            var GenMaps = handles.OnMapRegionGen.FindIndex(a => a.Method.DeclaringType == typeof(GenMaps));
-            handles.OnMapRegionGen.RemoveAt(GenMaps);
-            var GenTerra = handles.OnChunkColumnGen[(int)EnumWorldGenPass.Terrain].FindIndex(a => a.Method.DeclaringType == typeof(GenTerra));
-            handles.OnChunkColumnGen[(int)EnumWorldGenPass.Terrain].RemoveAt(GenTerra);
-            var GenTerraPostProcess = handles.OnChunkColumnGen[(int)EnumWorldGenPass.TerrainFeatures].FindIndex(a => a.Method.DeclaringType == typeof(GenTerraPostProcess));
-            handles.OnChunkColumnGen[(int)EnumWorldGenPass.TerrainFeatures].RemoveAt(GenTerraPostProcess);
-            var GenPonds = handles.OnChunkColumnGen[(int)EnumWorldGenPass.TerrainFeatures].FindIndex(a => a.Method.DeclaringType == typeof(GenPonds));
-            handles.OnChunkColumnGen[(int)EnumWorldGenPass.TerrainFeatures].RemoveAt(GenPonds);
-            var GenRivulets = handles.OnChunkColumnGen[(int)EnumWorldGenPass.Vegetation].FindIndex(a => a.Method.DeclaringType == typeof(GenRivulets));
-            handles.OnChunkColumnGen[(int)EnumWorldGenPass.Vegetation].RemoveAt(GenRivulets);
-            api.Event.GetWorldgenBlockAccessor(OnWorldGenBlockAccessor);
             api.Event.InitWorldGenerator(OnInitWorldGen, "standard");
-            handles.OnMapRegionGen.Add(OnMapRegionGen);
-            handles.OnChunkColumnGen[(int)EnumWorldGenPass.Terrain].Insert(0, OnChunkColumnGen);
+            api.Event.GetWorldgenBlockAccessor(OnWorldGenBlockAccessor);
         }
     }
 }
